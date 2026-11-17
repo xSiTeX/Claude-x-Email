@@ -53,7 +53,7 @@ Danach eine neue Sitzung starten. Updates holst du mit `/plugin marketplace upda
 | `/mail-setup` | Einrichtung prüfen und alle Befehle zeigen |
 | `/mail-help [Thema]` | Diese Anleitung erklären lassen |
 
-**In Claude Code** tippst du die Befehle direkt ein.
+**In Claude Code** tippst du die Befehle direkt ein. `install.py` legt dafür kurze Befehle an (`/mail`, `/mail-contacts` …). Ohne diese heißen die Befehle `/mail-assistant:mail`, `/mail-assistant:mail-contacts` und so weiter. Beide Schreibweisen machen dasselbe. Nach der Installation einmal eine **neue Sitzung** starten, sonst kennt Claude die Befehle noch nicht.
 
 **In der Desktop-App** gibt es keine Slash-Befehle. Die gleichen Befehle stellt die Erweiterung dort als **Prompts** bereit. Du findest sie je nach App-Version über das Plus- bzw. Anhang-Menü im Eingabefeld unter „Mail Assistant“. Noch einfacher: Schreib normal, zum Beispiel „Schreib Mehdi, dass das Treffen am Freitag um 14 Uhr ist“. Claude nutzt die Werkzeuge dann von selbst.
 
@@ -269,7 +269,7 @@ Andere Orte lassen sich mit den Umgebungsvariablen `EMAIL_DRAFT_DIR`, `MAIL_STAT
 
 | Problem | Lösung |
 |---|---|
-| Befehl `/mail` unbekannt | Plugin nicht installiert oder Sitzung nicht neu gestartet. Siehe Installation. In der Desktop-App gibt es keine Slash-Befehle, dort normal schreiben oder die Prompts nutzen. |
+| Befehl `/mail` unbekannt | Neue Sitzung starten. Hilft das nicht: `/mail-assistant:mail` verwenden oder `python install.py` erneut ausführen (legt die kurzen Befehle an). Siehe Installation. In der Desktop-App gibt es keine Slash-Befehle, dort normal schreiben oder die Prompts nutzen. |
 | Werkzeuge fehlen / Server startet nicht | `python --version` prüfen. Python 3 muss im PATH sein. |
 | Entwurf öffnet sich nicht | Für `.eml`-Dateien ist kein Mailprogramm eingestellt. Datei aus `Dokumente\ClaudeEmailDrafts` per Rechtsklick → Öffnen mit → Outlook öffnen. |
 | Schrift sieht anders aus | Der Empfänger hat die Schrift nicht installiert; dann greift die Ersatzschrift. Webmail (Gmail im Browser) zeigt manchmal eine eigene Schrift. |

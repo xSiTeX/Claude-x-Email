@@ -62,7 +62,7 @@ Read the output. Every `[X]` is an error you must fix or explain. Every `[!]` ne
 
 ### A5. Tell the user what to do now
 
-- **Claude Code:** start a new session, then type `/mail-setup`.
+- **Claude Code:** start a new session (commands load only at session start), then type `/mail-setup`. The installer creates short personal commands (`/mail`, `/mail-reply`, …) in `~/.claude/commands` that forward to the plugin. The plugin's own names are `/mail-assistant:mail` etc. Both work. If the user types `/mail` and it is unknown, run the skill `mail-assistant:mail` yourself.
 - **Desktop app:** in the window that opened, click **Installieren** and leave the SMTP fields empty. Then fully quit the app (also from the system tray) and start it again. With `--desktop-config`, only the restart is needed.
 - **First test:** "Schreib eine Test-Mail an mich selbst" or `/mail-help`.
 
@@ -99,6 +99,7 @@ Optional: the skill zips at https://github.com/xSiTeX/Claude-x-Email/tree/main/d
 |---|---|
 | `python` not found after installing | New terminal; Windows: reinstall with "Add python.exe to PATH", or `winget install -e --id Python.Python.3.12` |
 | `[!] Der Befehl 'python' fehlt im PATH` | Same as above. For the Desktop app only, `python install.py --desktop-config` works with the full path |
+| `/mail` unknown | New session; or use `/mail-assistant:mail`; or rerun `python install.py --no-desktop` to recreate the short commands |
 | `claude plugin ...` failed | Have the user type in Claude Code: `/plugin marketplace add xSiTeX/Claude-x-Email`, then `/plugin install mail-assistant@mail-tools` |
 | Desktop shows no Mail Assistant tools | Fully quit and restart the app; check *Einstellungen → Erweiterungen*; or `python install.py --desktop-config` |
 | Anything else | `python install.py --check` and the "Fehlerbehebung" section of `mail-assistant/ANLEITUNG.md` |

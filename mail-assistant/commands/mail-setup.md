@@ -19,4 +19,6 @@ Then show the commands:
 | `/mail-setup` | This overview and diagnosis |
 | `/mail-help [topic]` | Detailed explanation in German |
 
+These short names exist when `install.py` created them; the plugin names `/mail-assistant:mail` etc. always work.
+
 If the profile has no name yet, offer `/mail-profile` as the first step.

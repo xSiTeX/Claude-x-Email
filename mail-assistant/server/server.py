@@ -33,7 +33,7 @@ from email.parser import BytesParser
 from email import policy
 from email.utils import formatdate, make_msgid, getaddresses
 
-VERSION = "5.0.0"
+VERSION = "5.1.0"
 MAX_TOTAL = 25 * 1024 * 1024
 HOME = os.path.expanduser("~")
 OUT_DIR = os.path.abspath(os.environ.get("EMAIL_DRAFT_DIR") or os.path.join(HOME, "Documents", "ClaudeEmailDrafts"))
@@ -180,21 +180,41 @@ EMAIL_OK = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 NUMBER_FIXES = {
-    "date": "DIN 5008 date: DD.MM.YYYY with leading zeros (07.03.2026).",
-    "time": "DIN 5008 time: hours:minutes with a colon (14:30 Uhr).",
-    "amount": "DIN 5008 amounts: number, space, currency after it (1.250,00 € / 250 EUR).",
-    "percent": "DIN 5008: space before the percent sign (25 %).",
-    "phone": "DIN 5008 phone: +49 30 1234567 / 030 1234567 (no slash, no (0), no 0049).",
+    "date": "DIN 5008 date (DD.MM.YYYY)",
+    "time": "DIN 5008 time (colon)",
+    "amount": "DIN 5008 amount (space, currency after the number)",
+    "percent": "DIN 5008 percent (space before %)",
+    "phone": "DIN 5008 phone number",
 }
 
 
+def number_fix_notes(kinds):
+    """Notes with the real changes, e.g. "DIN 5008 date (DD.MM.YYYY): 7.3.2026 -> 07.03.2026"."""
+    notes = []
+    for k in ("date", "time", "amount", "percent", "phone"):
+        pairs = list(dict.fromkeys(kinds.get(k, [])))
+        if pairs:
+            shown = ", ".join("'%s' -> '%s'" % p for p in pairs[:3]) + (" ..." if len(pairs) > 3 else "")
+            notes.append("%s: %s" % (NUMBER_FIXES[k], shown))
+    return notes
+
+
 def din_numbers(text, kinds):
-    """Bring dates, times, amounts, percentages and phone numbers in plain text to DIN 5008."""
+    """Bring dates, times, amounts, percentages and phone numbers in plain text to DIN 5008.
+    kinds: dict kind -> list of (before, after), filled with every change."""
     def sub(kind, pattern, repl, s):
-        new = re.sub(pattern, repl, s)
-        if new != s:
-            kinds.add(kind)
-        return new
+        def one(m):
+            r = repl(m) if callable(repl) else m.expand(repl)
+            if r != m.group(0):  # note the whole words around the change, not just the matched piece
+                a, b = m.start(), m.end()
+                while a > 0 and not s[a - 1].isspace():
+                    a -= 1
+                while b < len(s) and not s[b].isspace():
+                    b += 1
+                tidy = lambda x: re.sub(r"\s+", " ", x).strip().rstrip(",.;:)")
+                kinds.setdefault(kind, []).append((tidy(s[a:b]), tidy(s[a:m.start()] + r + s[m.end():b])))
+            return r
+        return re.sub(pattern, one, s)
 
     def date(m):
         d, mo = int(m.group(1)), int(m.group(2))
@@ -380,12 +400,12 @@ def compose(args, prof):
 
     sig_lines = [l.rstrip() for l in (sig or "").strip().splitlines()]
     if de:  # dates, times, amounts, percent, phone numbers to DIN 5008
-        kinds = set()
+        kinds = {}
         paras = [[din_numbers(l, kinds) for l in p] for p in paras]
         sig_lines = [din_numbers(l, kinds) for l in sig_lines]
         if html_body:
             html_body = din_numbers_html(html_body, kinds)
-        fixes += [NUMBER_FIXES[k] for k in ("date", "time", "amount", "percent", "phone") if k in kinds]
+        fixes += number_fix_notes(kinds)
 
     # ---- blocks: ("text", lines) | ("html", html, plain_paras) | ("img", cid, filename) | ("sig", lines)
     blocks = []

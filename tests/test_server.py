@@ -221,6 +221,8 @@ class NormTests(Base):
                        body="am 7.3.2026 um 9.30 Uhr, Preis 250€ bzw. € 1.250,00, 10% Rabatt, +49 (0)30 555.")
         self.assertIn("am 07.03.2026 um 9:30 Uhr, Preis 250 € bzw. 1.250,00 €, 10 % Rabatt, +49 30 555.", text)
         self.assertIn("Telefon 030 123456", text)
+        self.assertIn("'7.3.2026' -> '07.03.2026'", text)  # notes show the real values
+        self.assertIn("'250€' -> '250 €'", text)
         call("email_profile_set", signature="")
 
     def test_english_text_keeps_numbers(self):

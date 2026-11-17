@@ -3,7 +3,8 @@
 
 Sets everything up in one go:
   1. checks Python
-  2. installs the plugin in Claude Code (if the `claude` command exists)
+  2. installs the plugin in Claude Code (if the `claude` command exists) and the short commands /mail, /mail-reply ...
+     in ~/.claude/commands (plugin commands are otherwise only reachable as /mail-assistant:mail)
   3. installs the extension in the Claude Desktop app (opens the .mcpb, or writes the config with --desktop-config)
   4. saves the mail profile (name, closing, signature, language, font) if given
   5. runs a self-test of the mail server
@@ -89,6 +90,61 @@ def install_claude_code(check_only):
     else:
         say(WARN, "Claude Code: automatische Installation fehlgeschlagen (%s). Bitte in Claude Code eingeben: "
                   "/plugin install %s" % (out[-200:], PLUGIN))
+
+
+# ------------------------------------------------------------------ 2b. short command names
+SHORTCUT_MARK = "<!-- mail-assistant shortcut: managed by install.py, safe to delete -->"
+
+
+def install_shortcuts(check_only, remove=False):
+    """Plugin commands are namespaced (/mail-assistant:mail). Personal commands in ~/.claude/commands give the short
+    names /mail, /mail-reply, ... They contain the same instructions as the plugin commands."""
+    src = os.path.join(ROOT, "mail-assistant", "commands")
+    dst = os.path.join(os.path.expanduser("~"), ".claude", "commands")
+    names = sorted(f for f in os.listdir(src) if f.endswith(".md"))
+    done, skipped, present = [], [], []
+    for fn in names:
+        target = os.path.join(dst, fn)
+        ours = False
+        if os.path.isfile(target):
+            with open(target, encoding="utf-8") as f:
+                ours = SHORTCUT_MARK in f.read()
+            present.append(fn) if ours else None
+            if not ours:
+                skipped.append(fn)
+                continue
+        if check_only:
+            continue
+        if remove:
+            if ours:
+                os.remove(target)
+                done.append(fn)
+            continue
+        with open(os.path.join(src, fn), encoding="utf-8") as f:
+            text = f.read().replace("\r\n", "\n")
+        front = text.split("---", 2)[1].strip() if text.startswith("---") else ""
+        name = fn[:-3]
+        # A thin forwarder: always uses the current plugin version, never goes stale.
+        body = ("---\n%s\n---\n\nUse the Skill tool to run the plugin command `mail-assistant:%s` with these "
+                "arguments, and follow it exactly: $ARGUMENTS\n\nIf that skill does not exist, the Mail Assistant "
+                "plugin is not installed or is disabled: tell the user to run `python install.py` in the "
+                "Claude-x-Email folder (or `/plugin install mail-assistant@mail-tools`) and start a new session.\n\n%s\n"
+                % (front, name, SHORTCUT_MARK))
+        os.makedirs(dst, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(body)
+        done.append(fn)
+    short = lambda lst: ", ".join("/" + f[:-3] for f in lst)
+    if check_only:
+        say(OK if len(present) == len(names) else INFO, "Kurze Befehle: %d von %d vorhanden (%s)." % (
+            len(present), len(names), short(present) or "keine"))
+    elif remove:
+        say(OK, "Kurze Befehle entfernt: %s" % (short(done) or "keine"))
+    else:
+        say(OK, "Kurze Befehle angelegt: %s (in %s)." % (short(done), dst))
+    if skipped:
+        say(WARN, "Nicht überschrieben, weil dort schon eigene Befehle mit diesem Namen liegen: %s. Dafür gibt es "
+                  "weiter /mail-assistant:<name>." % short(skipped))
 
 
 # ------------------------------------------------------------------ 3. Claude Desktop
@@ -203,6 +259,8 @@ def main():
     ap.add_argument("--no-code", action="store_true", help="skip Claude Code")
     ap.add_argument("--no-desktop", action="store_true", help="skip Claude Desktop")
     ap.add_argument("--desktop-config", action="store_true", help="write claude_desktop_config.json instead of .mcpb")
+    ap.add_argument("--no-shortcuts", action="store_true", help="do not create the short commands /mail, /mail-reply ...")
+    ap.add_argument("--remove-shortcuts", action="store_true", help="remove the short commands again")
     ap.add_argument("--name")
     ap.add_argument("--closing")
     ap.add_argument("--signature", help="lines separated by |")
@@ -220,8 +278,12 @@ def main():
     print("Mail Assistant - Einrichtung (%s)\n" % ROOT)
     if not check_python():
         sys.exit(1)
-    if not args.no_code:
+    if args.remove_shortcuts:
+        install_shortcuts(False, remove=True)
+    elif not args.no_code:
         install_claude_code(args.check)
+        if not args.no_shortcuts:
+            install_shortcuts(args.check)
     if not args.no_desktop:
         install_desktop(args.check, args.desktop_config)
     if not args.check:

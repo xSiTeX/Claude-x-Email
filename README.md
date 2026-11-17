@@ -38,6 +38,8 @@ Mails are built as `.eml` files that open as unsent drafts in Outlook, Thunderbi
 | `/mail-setup` | Overview and diagnosis |
 | `/mail-help [topic]` | Detailed explanation in German |
 
+`install.py` adds these short names as personal commands in `~/.claude/commands` (thin forwarders to the plugin). Without them the plugin's names are `/mail-assistant:mail`, `/mail-assistant:mail-reply`, … Start a new session after installing.
+
 You can also just ask in plain language ("Schreib Herrn Schmidt, dass die Rechnung im Anhang ist").
 
 **Claude Desktop:** the app has no slash commands, so the server offers the same commands as **MCP prompts** (in the input field's plus/attach menu under "Mail Assistant", depending on app version). The server also sends its workflow and DIN rules as MCP server instructions, so the Desktop app writes to the norm even without uploading the skills. Profile, drafts and send log are the same files for Claude Code and Desktop on one PC.
