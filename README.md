@@ -2,6 +2,10 @@
 
 A complete email upgrade for **Claude Code** and the **Claude Desktop app**.
 
+**Ausführliche Anleitung auf Deutsch: [ANLEITUNG.md](mail-assistant/ANLEITUNG.md)** (also available inside Claude via `/mail-help` or the `email_help` tool).
+
+Defaults: **German DIN 5008 layout, Calibri 11 pt, black.** Clearly English text gets the international layout.
+
 1. **Correct layout.** Every mail is laid out to **DIN 5008** (German) or international business style: exactly one blank line between salutation, paragraphs, closing, name and signature, no comma after a German closing, lower-case start after "Anrede,", clean subject. The server does the spacing, so it is right every time.
 2. **Better emails.** Skills for writing, replying and proofreading with structure, tone, language and signature.
 3. **Attachments and images.** Attach any files and place pictures inside the text.
@@ -21,8 +25,11 @@ Mails are built as `.eml` files that open as unsent drafts in Outlook, Thunderbi
 | `/mail-profile [values]` | Name, closing, signature, language, font |
 | `/mail-permissions [level]` | Draft only / ask before send / autonomous |
 | `/mail-setup` | Overview and diagnosis |
+| `/mail-help [topic]` | Detailed explanation in German |
 
 You can also just ask in plain language ("Schreib Herrn Schmidt, dass die Rechnung im Anhang ist").
+
+**Claude Desktop:** the app has no slash commands, so the server offers the same commands as **MCP prompts** (in the input field's plus/attach menu under "Mail Assistant", depending on app version). The server also sends its workflow and DIN rules as MCP server instructions, so the Desktop app writes to the norm even without uploading the skills. Profile, drafts and send log are the same files for Claude Code and Desktop on one PC.
 
 ## What a mail looks like (DIN 5008)
 
@@ -42,8 +49,8 @@ Muster GmbH
 Telefon +49 30 1234567
 ```
 
-Fixed automatically: missing blank lines, double spaces, indents, extra blank lines, comma after the salutation, comma after a German closing, "Betreff:" and a final full stop in the subject, "Ich/Vielen Dank" after "Anrede," to lower case.
-Warnings: attachment not mentioned (or mentioned but missing), phone format (`+49 30 1234567`), long subject, capitals, "!!", long paragraphs, font size outside 10 to 12 pt, invalid addresses.
+Fixed automatically: missing blank lines, double spaces, indents, extra blank lines, comma after the salutation, comma after a German closing, "Betreff:" and a final full stop in the subject, "Ich/Vielen Dank" after "Anrede," to lower case, and in German mails dates (`7.3.2026` → `07.03.2026`), times (`9.30 Uhr` → `9:30 Uhr`), amounts (`250€` → `250 €`), percent (`10%` → `10 %`) and phone numbers (`030/123456` → `030 123456`, `+49 (0)30` → `+49 30`).
+Warnings: attachment not mentioned (or mentioned but missing), long subject, capitals, "!!", long paragraphs, font size outside 10 to 12 pt, invalid addresses.
 
 Full rules: [`din5008.md`](mail-assistant/skills/write-email/references/din5008.md).
 
@@ -59,6 +66,7 @@ Full rules: [`din5008.md`](mail-assistant/skills/write-email/references/din5008.
 | `email_permissions_set` | Change the permission level |
 | `email_setup_check` | Diagnosis |
 | `email_files_check` | File sizes against the 25 MB limit |
+| `email_help` | The German guide, whole or one topic |
 
 The version 3 tool names (`create_email_draft`, `send_email`, ...) still work.
 

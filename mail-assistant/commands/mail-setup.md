@@ -15,5 +15,6 @@ Then show the commands:
 | `/mail-profile [values]` | Name, closing, signature, language, font |
 | `/mail-permissions [level]` | Draft only / ask before send / autonomous |
 | `/mail-setup` | This overview and diagnosis |
+| `/mail-help [topic]` | Detailed explanation in German |
 
 If the profile has no name yet, offer `/mail-profile` as the first step.

@@ -2,12 +2,14 @@
   "manifest_version": "0.2",
   "name": "mail-assistant",
   "display_name": "Mail Assistant",
-  "version": "4.0.0",
-  "description": "Email upgrade for Claude: attachments, inline images, any font (Calibri etc.), drafts and permission-controlled sending.",
-  "long_description": "Creates emails as ready-to-review drafts with file attachments, inline images and any font. Sending is off by default; you choose between draft only, ask before sending, or autonomous sending to an allow-list.",
+  "version": "4.1.0",
+  "description": "Emails nach DIN 5008 in Calibri: Anhänge, Bilder im Text, jede Schrift, Entwürfe und Senden mit Rechtestufen.",
+  "long_description": "Erstellt E-Mails als fertige Entwürfe nach DIN 5008 (Leerzeilen, Anrede, Grußformel, Datum, Uhrzeit, Beträge, Telefonnummern) in Calibri 11 pt oder jeder anderen Schrift, mit Dateianhängen und Bildern im Text. Senden ist standardmäßig aus; du wählst zwischen nur Entwürfe, vor dem Senden fragen und autonomem Senden an eine Erlaubnisliste. Befehle wie mail, mail-check und mail-help stehen als Prompts bereit. Ausführliche Anleitung: Tool email_help oder ANLEITUNG.md.",
   "author": { "name": "xSiTeX" },
   "repository": { "type": "git", "url": "https://github.com/xSiTeX/Claude-x-Email" },
+  "homepage": "https://github.com/xSiTeX/Claude-x-Email",
   "license": "MIT",
+  "keywords": ["email", "din5008", "calibri", "attachments", "drafts"],
   "server": {
     "type": "python",
     "entry_point": "server/server.py",
@@ -17,25 +19,28 @@
       "env": {
         "MAIL_SMTP_HOST": "${user_config.smtp_host}",
         "MAIL_SMTP_USER": "${user_config.smtp_user}",
-        "MAIL_SMTP_PASSWORD": "${user_config.smtp_password}"
+        "MAIL_SMTP_PASSWORD": "${user_config.smtp_password}",
+        "PYTHONIOENCODING": "utf-8"
       }
     }
   },
   "tools": [
-    { "name": "email_draft", "description": "Create an unsent draft in DIN 5008 layout with attachments, inline images and any font" },
-    { "name": "email_check", "description": "Check a mail against DIN 5008 and show the exact layout" },
-    { "name": "email_send", "description": "Send a draft according to the permission level" },
-    { "name": "email_list_drafts", "description": "List recent drafts" },
-    { "name": "email_profile_get", "description": "Show profile, sign-off preview and permission level" },
-    { "name": "email_profile_set", "description": "Save name, closing, signature, language, font and SMTP host" },
-    { "name": "email_permissions_set", "description": "Change the permission level (only on the user's request)" },
-    { "name": "email_setup_check", "description": "Diagnose the setup" },
-    { "name": "email_files_check", "description": "Check attachment files and sizes" }
+    { "name": "email_draft", "description": "Entwurf nach DIN 5008 mit Anhängen, Bildern und Schrift erstellen" },
+    { "name": "email_check", "description": "Mail gegen DIN 5008 prüfen und das genaue Layout zeigen" },
+    { "name": "email_send", "description": "Entwurf nach Rechtestufe senden" },
+    { "name": "email_list_drafts", "description": "Letzte Entwürfe auflisten" },
+    { "name": "email_profile_get", "description": "Profil, Grußformel-Vorschau und Rechtestufe zeigen" },
+    { "name": "email_profile_set", "description": "Name, Grußformel, Signatur, Sprache, Schrift, SMTP speichern" },
+    { "name": "email_permissions_set", "description": "Rechtestufe ändern (nur auf Wunsch des Nutzers)" },
+    { "name": "email_setup_check", "description": "Einrichtung prüfen" },
+    { "name": "email_files_check", "description": "Anhänge und Größen prüfen" },
+    { "name": "email_help", "description": "Ausführliche Anleitung auf Deutsch" }
   ],
+  "prompts_generated": true,
   "user_config": {
-    "smtp_host": { "type": "string", "title": "SMTP server (only needed for sending)", "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com", "required": false, "default": "" },
-    "smtp_user": { "type": "string", "title": "SMTP user / email address", "required": false, "default": "" },
-    "smtp_password": { "type": "string", "title": "App password (only needed for sending)", "description": "Use an app password from your mail provider, not your normal password.", "sensitive": true, "required": false, "default": "" }
+    "smtp_host": { "type": "string", "title": "SMTP-Server (nur zum Senden)", "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com", "required": false, "default": "" },
+    "smtp_user": { "type": "string", "title": "SMTP-Benutzer / E-Mail-Adresse (nur zum Senden)", "required": false, "default": "" },
+    "smtp_password": { "type": "string", "title": "App-Passwort (nur zum Senden)", "description": "Ein App-Passwort deines Mailanbieters, nicht dein normales Passwort.", "sensitive": true, "required": false, "default": "" }
   },
   "compatibility": { "platforms": ["win32", "darwin", "linux"] }
 }

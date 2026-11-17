@@ -22,6 +22,8 @@ os.makedirs(os.path.join(DIST, "skills"), exist_ok=True)
 with zipfile.ZipFile(os.path.join(DIST, "mail-assistant.mcpb"), "w", zipfile.ZIP_DEFLATED) as z:
     z.write(os.path.join(ROOT, "desktop", "manifest.json"), "manifest.json")
     z.write(os.path.join(PLUGIN, "server", "server.py"), "server/server.py")
+    z.write(os.path.join(PLUGIN, "ANLEITUNG.md"), "ANLEITUNG.md")  # served by the email_help tool
+    zipdir(z, os.path.join(PLUGIN, "commands"), "commands")  # served as MCP prompts in Claude Desktop
 
 skills = os.path.join(PLUGIN, "skills")
 for name in sorted(os.listdir(skills)):

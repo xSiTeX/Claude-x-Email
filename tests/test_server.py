@@ -107,7 +107,7 @@ class LayoutTests(Base):
         text, _ = call("email_check", subject="A" * 70, language="de", salutation="Hallo,",
                        body="anbei die Datei. Ruf an: 030/123456")
         self.assertIn("no file is attached", text)
-        self.assertIn("Phone number format", text)
+        self.assertIn("Ruf an: 030 123456", text)  # fixed to DIN 5008
         self.assertIn("70 characters", text)
         text, _ = call("email_check", subject="x", salutation="Hallo,", body="text", attachments=[self.txt])
         self.assertIn("Attachment not mentioned", text)
@@ -205,11 +205,61 @@ class PermissionTests(Base):
             self.assertIn("limit", text)
 
 
+class NormTests(Base):
+    def test_default_is_din5008_and_calibri(self):
+        text, _ = call("email_check", subject="x", body="Hallo Mehdi, Ich komme morgen.")
+        self.assertIn("Layout: DIN 5008", text)
+        self.assertIn(" 3 | ich komme morgen.", text)
+        self.assertIn("Freundliche Grüße", text)
+        html = parse(self.draft()).get_body(("html",)).get_content()
+        self.assertIn("font-family:'Calibri'", html)
+        self.assertIn("font-size:11pt", html)
+
+    def test_dates_times_amounts_phone(self):
+        call("email_profile_set", signature="Telefon 030/123456", language="de")
+        text, _ = call("email_check", subject="x", salutation="Hallo Mehdi,",
+                       body="am 7.3.2026 um 9.30 Uhr, Preis 250€ bzw. € 1.250,00, 10% Rabatt, +49 (0)30 555.")
+        self.assertIn("am 07.03.2026 um 9:30 Uhr, Preis 250 € bzw. 1.250,00 €, 10 % Rabatt, +49 30 555.", text)
+        self.assertIn("Telefon 030 123456", text)
+        call("email_profile_set", signature="")
+
+    def test_english_text_keeps_numbers(self):
+        text, _ = call("email_check", subject="x", body="Hi John, thanks for the update, see you on 7.3.2026.")
+        self.assertIn("international", text)
+        self.assertIn(" 1 | Hi John,\n 2 | \n 3 | Thanks for the update, see you on 7.3.2026.", text)
+
+    def test_html_numbers_leave_css_alone(self):
+        path = self.draft(salutation="Hallo,", html_body='<p style="width:100%">10% am 1.2.2026</p>')
+        h = parse(path).get_body(("html",)).get_content()
+        self.assertIn("width:100%", h)
+        self.assertIn("10 % am 01.02.2026", h)
+
+
 class ProtocolTests(unittest.TestCase):
+    def test_initialize_has_instructions_and_prompts(self):
+        r = server.handle({"method": "initialize", "id": 1, "params": {}})["result"]
+        self.assertIn("DIN 5008", r["instructions"])
+        self.assertIn("prompts", r["capabilities"])
+        prompts = server.handle({"method": "prompts/list", "id": 2})["result"]["prompts"]
+        names = [p["name"] for p in prompts]
+        for n in ("mail", "mail-reply", "mail-check", "mail-send", "mail-profile", "mail-permissions",
+                  "mail-setup", "mail-help"):
+            self.assertIn(n, names)
+        got = server.handle({"method": "prompts/get", "id": 3,
+                             "params": {"name": "mail", "arguments": {"anfrage": "an Mehdi wegen Freitag"}}})
+        self.assertIn("an Mehdi wegen Freitag", got["result"]["messages"][0]["content"]["text"])
+
+    def test_help(self):
+        text, err = call("email_help")
+        self.assertFalse(err)
+        self.assertIn("Rechtestufen", text)
+        text, _ = call("email_help", topic="daten")
+        self.assertIn("profile.json", text)
+
     def test_tools_list_and_unknown_tool(self):
         names = [t["name"] for t in server.handle({"method": "tools/list", "id": 1})["result"]["tools"]]
         self.assertTrue(all(n.startswith("email_") for n in names))
-        self.assertEqual(len(names), 9)
+        self.assertEqual(len(names), 10)
         r = server.handle({"method": "tools/call", "id": 2, "params": {"name": "nope"}})
         self.assertIn("error", r)
 

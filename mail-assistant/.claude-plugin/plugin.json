@@ -1,6 +1,6 @@
 {
   "name": "mail-assistant",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Complete email upgrade for Claude: DIN 5008 layout with correct spacing, clear /mail commands, better writing, attachments and inline images, any font (Calibri etc.), and permission levels from draft-only to autonomous sending.",
   "author": { "name": "xSiTeX" },
   "homepage": "https://github.com/xSiTeX/Claude-x-Email",
