@@ -33,7 +33,7 @@ from email.parser import BytesParser
 from email import policy
 from email.utils import formatdate, make_msgid, getaddresses
 
-VERSION = "5.1.0"
+VERSION = "5.1.1"
 MAX_TOTAL = 25 * 1024 * 1024
 HOME = os.path.expanduser("~")
 OUT_DIR = os.path.abspath(os.environ.get("EMAIL_DRAFT_DIR") or os.path.join(HOME, "Documents", "ClaudeEmailDrafts"))
@@ -1328,8 +1328,17 @@ def load_prompts():
         m = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.S)
         if not m:
             continue
-        meta = dict((k.strip(), v.strip()) for k, v in
-                    (line.split(":", 1) for line in m.group(1).splitlines() if ":" in line))
+        meta = {}
+        for line in m.group(1).splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                v = v.strip()
+                if len(v) >= 2 and v[0] == v[-1] == '"':  # quoted YAML string
+                    try:
+                        v = json.loads(v)
+                    except ValueError:
+                        v = v[1:-1]
+                meta[k.strip()] = v
         out[fn[:-3]] = {"description": meta.get("description", ""), "hint": meta.get("argument-hint", ""),
                         "body": m.group(2).strip()}
     return out

@@ -1,6 +1,6 @@
 ---
-description: Write a new email (DIN 5008 layout, attachments, images, fonts) and open it as a draft
-argument-hint: <to whom, what about> [file paths]
+description: "Write a new email (DIN 5008 layout, attachments, images, fonts) and open it as a draft"
+argument-hint: "<to whom, what about> [file paths]"
 ---
 
 Write a new email with the `write-email` skill (if that skill is not available, follow the Mail Assistant server instructions): $ARGUMENTS

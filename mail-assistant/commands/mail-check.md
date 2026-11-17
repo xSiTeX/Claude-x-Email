@@ -1,6 +1,6 @@
 ---
-description: Check and correct an email text or draft against DIN 5008 (spacing, salutation, closing, spelling)
-argument-hint: <pasted text or draft path; empty = newest draft>
+description: "Check and correct an email text or draft against DIN 5008 (spacing, salutation, closing, spelling)"
+argument-hint: "<pasted text or draft path; empty = newest draft>"
 ---
 
 Proofread with the `proofread-email` skill: $ARGUMENTS

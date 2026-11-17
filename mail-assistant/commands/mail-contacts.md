@@ -1,6 +1,6 @@
 ---
-description: Show, add or change contacts (address, du/Sie, salutation)
-argument-hint: [e.g. "Mehdi mehdi@example.com du" or "Dr. Lisa Schmidt lisa@firma.de Frau Sie" or a search word]
+description: "Show, add or change contacts (address, du/Sie, salutation)"
+argument-hint: "[e.g. \"Mehdi mehdi@example.com du\" or \"Dr. Lisa Schmidt lisa@firma.de Frau Sie\" or a search word]"
 ---
 
 Contacts: $ARGUMENTS

@@ -1,5 +1,5 @@
 ---
-description: Check the mail setup and show all mail commands
+description: "Check the mail setup and show all mail commands"
 ---
 
 Run `email_setup_check` and report the result in a few lines, including any "To do" items.

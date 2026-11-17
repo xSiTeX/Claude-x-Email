@@ -1,6 +1,6 @@
 ---
-description: Use or manage templates for recurring mails (Rechnung, Termin, Absage, Nachfassen, Angebot, own)
-argument-hint: [template name and values, e.g. "rechnung an Lisa, Nr 2026-114, 250 €, Frist 15.11." or "neu: ..."]
+description: "Use or manage templates for recurring mails (Rechnung, Termin, Absage, Nachfassen, Angebot, own)"
+argument-hint: "[template name and values, e.g. \"rechnung an Lisa, Nr 2026-114, 250 €, Frist 15.11.\" or \"neu: ...\"]"
 ---
 
 Templates: $ARGUMENTS

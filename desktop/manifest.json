@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "mail-assistant",
   "display_name": "Mail Assistant",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "Emails nach DIN 5008 in Calibri: Kontakte, Vorlagen, Dateisuche, Anhänge, Logo-Signatur, Outlook-Entwürfe und Senden mit Rechtestufen.",
   "long_description": "Erstellt E-Mails als fertige Entwürfe nach DIN 5008 (Leerzeilen, Anrede, Grußformel, Datum, Uhrzeit, Beträge, Telefonnummern) in Calibri 11 pt oder jeder anderen Schrift, mit Dateianhängen und Bildern im Text. Senden ist standardmäßig aus; du wählst zwischen nur Entwürfe, vor dem Senden fragen und autonomem Senden an eine Erlaubnisliste. Befehle wie mail, mail-check und mail-help stehen als Prompts bereit. Ausführliche Anleitung: Tool email_help oder ANLEITUNG.md.",
   "author": {

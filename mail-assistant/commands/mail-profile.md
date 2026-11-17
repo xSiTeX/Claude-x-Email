@@ -1,6 +1,6 @@
 ---
-description: Show or set your mail profile (name, closing, signature, language, font)
-argument-hint: [e.g. "name Max Muster, closing Viele Grüße, font Calibri 11pt"]
+description: "Show or set your mail profile (name, closing, signature, language, font)"
+argument-hint: "[e.g. \"name Max Muster, closing Viele Grüße, font Calibri 11pt\"]"
 ---
 
 Mail profile: $ARGUMENTS

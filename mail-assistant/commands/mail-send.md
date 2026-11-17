@@ -1,6 +1,6 @@
 ---
-description: Send a finished draft (follows your permission level)
-argument-hint: [draft path; empty = choose from the newest drafts]
+description: "Send a finished draft (follows your permission level)"
+argument-hint: "[draft path; empty = choose from the newest drafts]"
 ---
 
 Send a draft: $ARGUMENTS

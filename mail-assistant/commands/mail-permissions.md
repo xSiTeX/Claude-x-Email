@@ -1,6 +1,6 @@
 ---
-description: Show or change what Claude may do with mail (draft only, ask before send, autonomous)
-argument-hint: [draft_only | ask_before_send | autonomous] [allowed addresses/@domains] [daily limit]
+description: "Show or change what Claude may do with mail (draft only, ask before send, autonomous)"
+argument-hint: "[draft_only | ask_before_send | autonomous] [allowed addresses/@domains] [daily limit]"
 ---
 
 Permission level: $ARGUMENTS
