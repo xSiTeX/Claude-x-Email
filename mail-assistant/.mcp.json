@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mail-assistant": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/server.py"],
+      "env": {
+        "MAIL_SMTP_PASSWORD": "${MAIL_SMTP_PASSWORD:-}",
+        "MAIL_SMTP_HOST": "${MAIL_SMTP_HOST:-}",
+        "MAIL_SMTP_USER": "${MAIL_SMTP_USER:-}"
+      }
+    }
+  }
+}

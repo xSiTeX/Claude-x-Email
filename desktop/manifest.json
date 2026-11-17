@@ -1,0 +1,38 @@
+{
+  "manifest_version": "0.2",
+  "name": "mail-assistant",
+  "display_name": "Mail Assistant",
+  "version": "3.0.0",
+  "description": "Email upgrade for Claude: attachments, inline images, any font (Calibri etc.), drafts and permission-controlled sending.",
+  "long_description": "Creates emails as ready-to-review drafts with file attachments, inline images and any font. Sending is off by default; you choose between draft only, ask before sending, or autonomous sending to an allow-list.",
+  "author": { "name": "xSiTeX" },
+  "repository": { "type": "git", "url": "https://github.com/xSiTeX/Claude-x-Email" },
+  "license": "MIT",
+  "server": {
+    "type": "python",
+    "entry_point": "server/server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": ["${__dirname}/server/server.py"],
+      "env": {
+        "MAIL_SMTP_HOST": "${user_config.smtp_host}",
+        "MAIL_SMTP_USER": "${user_config.smtp_user}",
+        "MAIL_SMTP_PASSWORD": "${user_config.smtp_password}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "create_email_draft", "description": "Create an unsent email draft with attachments, inline images and fonts" },
+    { "name": "send_email", "description": "Send a draft according to the permission level" },
+    { "name": "get_profile", "description": "Read profile and permission level" },
+    { "name": "set_profile", "description": "Save signature, font, language, permission level and SMTP host" },
+    { "name": "check_setup", "description": "Diagnose the setup" },
+    { "name": "list_attachments_preview", "description": "Check attachment sizes" }
+  ],
+  "user_config": {
+    "smtp_host": { "type": "string", "title": "SMTP server (only needed for sending)", "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com", "required": false, "default": "" },
+    "smtp_user": { "type": "string", "title": "SMTP user / email address", "required": false, "default": "" },
+    "smtp_password": { "type": "string", "title": "App password (only needed for sending)", "description": "Use an app password from your mail provider, not your normal password.", "sensitive": true, "required": false, "default": "" }
+  },
+  "compatibility": { "platforms": ["win32", "darwin", "linux"] }
+}
