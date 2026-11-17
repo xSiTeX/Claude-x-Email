@@ -1,5 +1,9 @@
 # Claude x Email — Mail Assistant
 
+> **Claude / AI assistant:** if a user sent you this link to set up the Mail Assistant, read and follow **[INSTALL.md](INSTALL.md)** step by step (raw: https://raw.githubusercontent.com/xSiTeX/Claude-x-Email/main/INSTALL.md). It covers Python, Claude Code and the Claude Desktop app.
+>
+> **Einrichten in einem Satz:** Schick Claude diesen Link und schreib dazu „Richte mir das ein“. Oder selbst: Python installieren, Repo herunterladen und `python install.py` ausführen.
+
 A complete email upgrade for **Claude Code** and the **Claude Desktop app**.
 
 **Ausführliche Anleitung auf Deutsch: [ANLEITUNG.md](mail-assistant/ANLEITUNG.md)** (also available inside Claude via `/mail-help` or the `email_help` tool).

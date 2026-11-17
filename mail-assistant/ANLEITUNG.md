@@ -14,6 +14,10 @@ Der Mail Assistant bringt Claude bei, E-Mails richtig zu schreiben: nach DIN 500
 
 ## Installation
 
+**Am einfachsten:** Schick Claude den Link https://github.com/xSiTeX/Claude-x-Email und schreib „Richte mir das ein“. Claude folgt dann der Anleitung `INSTALL.md` im Repo. Es prüft und installiert bei Bedarf Python, richtet Claude Code und die Desktop-App ein und legt dein Profil an. Du musst nur ein paar Fragen beantworten und in der Desktop-App einmal auf „Installieren“ klicken.
+
+Selbst einrichten: Python installieren, das Repo herunterladen und darin `python install.py` ausführen (`python install.py --help` zeigt alle Optionen, `python install.py --check` prüft nur).
+
 Voraussetzung: **Python 3** ist installiert. Prüfen im Terminal mit `python --version`.
 
 ### Claude Code

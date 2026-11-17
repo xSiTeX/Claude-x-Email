@@ -26,6 +26,15 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: python -m unittest discover -s tests -v
+      - name: Installer runs (diagnose and profile, no Claude apps on the runner)
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+          MAIL_STATE_DIR: ${{ runner.temp }}/mailstate
+          EMAIL_DRAFT_DIR: ${{ runner.temp }}/drafts
+        run: |
+          python install.py --check
+          python install.py --no-code --no-desktop --name "CI Test" --signature "Firma|Telefon 030/1234567"
       - name: Server answers over stdio
         shell: bash
         run: |
