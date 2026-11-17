@@ -10,6 +10,10 @@ Call `email_profile_get` once per session: `name`, `closing`, `signature`, `lang
 
 ## 2. Gather only what is missing
 Needed: recipient, purpose, key facts (dates, amounts, names), files. Ask one short question if something essential is missing, otherwise write. Never invent facts, dates, prices or promises.
+- **Recipient by name** ("Mehdi"): put the name into `to`. The server takes the address, du/Sie, salutation and language from the saved contact (`email_contacts`). Unknown name: ask for the address and offer to save it with `email_contact_set` (du/Sie, Frau/Herr).
+- **Write in the contact's form of address**: "du" → du, dich, dein (lower case); "sie" → Sie, Ihnen, Ihr.
+- **Recurring mails** (invoice, appointment, cancellation, follow-up, offer, own ones): `email_templates`, then `template` + `fields` in `email_draft`.
+- **Vague files** ("die letzte Rechnung", "das Foto von gestern"): `email_find_files`, show the hits, attach only after the user confirmed which file.
 
 ## 3. Write the content
 - **Subject:** specific, max ~60 characters ("Rechnung 2026-114 für Oktober", not "Frage"). No "Betreff:".
@@ -26,6 +30,8 @@ Call `email_draft` with:
 - `closing`: only if it differs from the profile
 - `attachments` (absolute paths), `inline_images` (pictures inside the text, `<img src="cid:img1">` in `html_body`)
 - `font` / `font_size` only if the user wants something other than the profile (any font name works; fallbacks are added)
+- `salutation` may be left out when the recipient is a saved contact; the server then uses the contact's salutation. Pass your own only if it should differ, and pass on any "Please check" about it.
+- `target: "outlook"` puts the draft into classic Outlook's Drafts folder (or set it once in the profile, `draft_target`). If Outlook is not available the .eml file opens instead; say so.
 
 The server then sets exactly one blank line between all blocks, the DIN 5008 closing (no comma, blank line, name), the signature separator and the font on every paragraph. Use `html_body` only for bold, lists, links, tables or mixed fonts. Full rules: `references/din5008.md`.
 

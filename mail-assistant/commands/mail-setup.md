@@ -12,7 +12,9 @@ Then show the commands:
 | `/mail-reply <mail>` | Answer a received email |
 | `/mail-check [text or draft]` | Check against DIN 5008 and correct |
 | `/mail-send [draft]` | Send a draft (by permission level) |
-| `/mail-profile [values]` | Name, closing, signature, language, font |
+| `/mail-profile [values]` | Name, closing, signature, logo, language, font, Outlook |
+| `/mail-contacts [data]` | Contacts with address, du/Sie, salutation |
+| `/mail-templates [name]` | Templates for recurring mails |
 | `/mail-permissions [level]` | Draft only / ask before send / autonomous |
 | `/mail-setup` | This overview and diagnosis |
 | `/mail-help [topic]` | Detailed explanation in German |

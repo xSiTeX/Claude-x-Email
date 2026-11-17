@@ -7,9 +7,10 @@ Der Mail Assistant bringt Claude bei, E-Mails richtig zu schreiben: nach DIN 500
 1. **Norm-Layout:** Jede Mail wird nach DIN 5008 aufgebaut, mit genau einer Leerzeile zwischen Anrede, Absätzen, Grußformel, Name und Signatur.
 2. **Daten nach Norm:** Datum, Uhrzeit, Geldbeträge, Prozentangaben und Telefonnummern werden automatisch ins DIN-Format gebracht.
 3. **Schrift:** Standard ist Calibri 11 pt in Schwarz. Jede andere Schrift geht auch.
-4. **Anhänge und Bilder:** Dateien werden angehängt, Bilder können mitten im Text stehen.
-5. **Entwürfe:** Die Mail öffnet sich als ungesendeter Entwurf in Outlook, Thunderbird oder Apple Mail. Du prüfst sie und drückst selbst auf Senden.
-6. **Rechtestufen:** Standardmäßig sendet Claude nie selbst. Du kannst das schrittweise freigeben.
+4. **Anhänge und Bilder:** Dateien werden angehängt, Bilder können mitten im Text stehen. Dateien findet Claude auch ohne Pfad („die letzte Rechnung“).
+5. **Kontakte und Vorlagen:** „/mail Mehdi, …“ reicht, Adresse und Du/Sie kommen aus den Kontakten. Wiederkehrende Mails gibt es als Vorlage.
+6. **Entwürfe:** Die Mail öffnet sich als ungesendeter Entwurf in Outlook, Thunderbird oder Apple Mail, auf Wunsch direkt im klassischen Outlook. Du prüfst sie und drückst selbst auf Senden.
+7. **Rechtestufen:** Standardmäßig sendet Claude nie selbst. Du kannst das schrittweise freigeben.
 
 ## Installation
 
@@ -28,7 +29,7 @@ Danach eine neue Sitzung starten. Updates holst du mit `/plugin marketplace upda
 
 ### Claude Desktop-App
 
-1. Die Datei `dist/mail-assistant.mcpb` aus dem GitHub-Repo herunterladen.
+1. Die Datei `mail-assistant.mcpb` von der Release-Seite herunterladen: https://github.com/xSiTeX/Claude-x-Email/releases (neueste Version oben). Alternativ liegt sie im Repo unter `dist/`.
 2. Doppelklick darauf (oder in der App unter *Einstellungen → Erweiterungen* installieren) und *Installieren* klicken.
 3. Die Felder für SMTP leer lassen, solange du nur Entwürfe willst.
 4. Optional: die ZIP-Dateien aus `dist/skills/` unter *Einstellungen → Fähigkeiten → Skills* hochladen. Nötig ist das nicht, die wichtigsten Regeln bringt die Erweiterung selbst mit.
@@ -41,7 +42,9 @@ Danach eine neue Sitzung starten. Updates holst du mit `/plugin marketplace upda
 | `/mail-reply <Mail>` | Auf eine erhaltene Mail antworten |
 | `/mail-check [Text oder Entwurf]` | Text oder Entwurf nach DIN 5008 prüfen und korrigieren |
 | `/mail-send [Entwurf]` | Einen Entwurf senden (je nach Rechtestufe) |
-| `/mail-profile [Werte]` | Name, Grußformel, Signatur, Sprache, Schrift festlegen |
+| `/mail-profile [Werte]` | Name, Grußformel, Signatur, Logo, Sprache, Schrift, Outlook festlegen |
+| `/mail-contacts [Daten]` | Kontakte mit Adresse, Du/Sie und Anrede verwalten |
+| `/mail-templates [Name]` | Vorlagen für wiederkehrende Mails nutzen oder anlegen |
 | `/mail-permissions [Stufe]` | Rechtestufe anzeigen oder ändern |
 | `/mail-setup` | Einrichtung prüfen und alle Befehle zeigen |
 | `/mail-help [Thema]` | Diese Anleitung erklären lassen |
@@ -149,6 +152,64 @@ Anzeigen mit `/mail-profile`, ändern mit `/mail-profile <Werte>`. Die Antwort z
 
 Wer früher „Freundliche Grüße, Max Muster“ komplett in die Signatur geschrieben hat: Das Plugin trennt das automatisch in Grußformel, Name und Signatur.
 
+### Signatur mit Logo
+
+- `/mail-profile Logo C:\Users\max\Pictures\logo.png, Logobreite 150` setzt ein Logo unter die Signatur (Breite in Pixeln, Standard 150).
+- Für eine formatierte Signatur (fett, Farbe, Link) kann Claude zusätzlich eine HTML-Signatur speichern („Mach den Firmennamen in der Signatur fett“). Die Textversion der Mail bekommt weiter die einfache Signatur.
+- Fehlt die Logodatei später, kommt ein Hinweis, die Mail wird trotzdem erstellt.
+
+## Kontakte
+
+Kontakte sparen Tipparbeit und sorgen für die richtige Anrede.
+
+```
+/mail-contacts Mehdi mehdi@example.com du
+/mail-contacts Dr. Lisa Schmidt lisa@firma.de Frau Sie
+```
+
+Danach reicht der Name: `/mail Mehdi, Treffen Freitag 14 Uhr`. Der Server setzt dann automatisch:
+- die Adresse (`Mehdi <mehdi@example.com>`),
+- die Anrede: „Hallo Mehdi,“ bei Du, „Sehr geehrte Frau Dr. Schmidt,“ bei Sie,
+- die Grußformel: „Viele Grüße“ bei Du, sonst die aus deinem Profil,
+- die Sprache, falls beim Kontakt eine eingetragen ist.
+
+Gespeichert werden: Name, E-Mail, Du/Sie, Frau/Herr, Titel, Vor- und Nachname, Sprache, eine feste Anrede oder Grußformel (falls gewünscht) und eine Notiz. Ein unbekannter Name führt zu einer Rückfrage, Claude rät nie eine Adresse.
+
+**Anrede-Prüfung:** Passt die Anrede nicht zum Kontakt, kommt ein Hinweis, zum Beispiel:
+- „Sehr geehrter Herr Schmidt“ an eine als Frau gespeicherte Person,
+- „Sehr geehrter Herr …“ an jemanden, den du duzt, oder „Hallo Lisa“ an jemanden, den du siezt,
+- eine Anrede mit einem ganz anderen Namen („Hallo Anna“ an Mehdi).
+
+„Sehr geehrte Herr“ bzw. „Sehr geehrter Frau“ wird automatisch grammatisch korrigiert.
+
+## Vorlagen
+
+Für Mails, die immer gleich aufgebaut sind. Eingebaut sind:
+
+| Vorlage | Felder |
+|---|---|
+| `rechnung` | nummer, datum, betrag, frist |
+| `termin` | datum, uhrzeit, ort |
+| `absage` | thema, anlass, grund |
+| `nachfassen` | datum, thema, frist |
+| `angebot` | nummer, thema, frist |
+
+Beispiel: `/mail-templates rechnung an Lisa, Nummer 2026-114 vom 01.10.2026, 250 €, zahlbar bis 15.11.2026, Datei C:\…\rechnung.pdf`
+
+Eigene Vorlagen: „Speichere eine Vorlage 'lieferung': Betreff 'Lieferung {{auftrag}}', Text 'Ihre Bestellung {{auftrag}} wird am {{datum}} geliefert.'“ Platzhalter stehen in doppelten geschweiften Klammern. Die eingebauten Vorlagen sind in der Sie-Form; bei Du-Kontakten schreibt Claude den Text passend um.
+
+## Dateien finden
+
+Du musst keine Pfade tippen. „Häng die letzte Rechnung an“ oder „das PDF vom Angebot Müller“ reicht. Claude sucht dann in Downloads, Dokumente, Desktop, Bilder und OneDrive nach Dateinamen mit diesen Wörtern (neueste zuerst), zeigt dir die Treffer und hängt erst an, wenn du bestätigt hast, welche Datei es sein soll. Gesucht wird nur im Dateinamen, nicht im Inhalt.
+
+## Entwürfe direkt in Outlook
+
+Mit `/mail-profile Entwürfe in Outlook` (Profilfeld `draft_target: outlook`) legt Claude jeden Entwurf direkt im **Entwürfe-Ordner von Outlook** an und öffnet ihn dort, mit Anhängen, Bildern und Schrift. Zusätzlich bleibt die .eml-Datei als Kopie im Entwürfe-Ordner des Plugins.
+
+Wichtig:
+- Das geht nur mit dem **klassischen Outlook** unter Windows (Outlook aus Microsoft 365/Office). Das **neue Outlook** („Outlook for Windows“, das blaue Symbol mit „New“) hat keine Schnittstelle dafür. Dann öffnet sich automatisch die .eml-Datei und Claude sagt dir das.
+- Beim ersten Mal kann Outlook eine Sicherheitsabfrage zeigen („Ein Programm versucht …“). Erlauben, wenn du es selbst ausgelöst hast.
+
 ## Rechtestufen
 
 | Stufe | Was Claude darf |
@@ -191,6 +252,8 @@ Alles bleibt auf deinem Rechner. Nichts geht an einen fremden Server, außer du 
 |---|---|
 | Entwürfe (.eml) | `Dokumente\ClaudeEmailDrafts` |
 | Profil | `%USERPROFILE%\.claude-mail\profile.json` |
+| Kontakte | `%USERPROFILE%\.claude-mail\contacts.json` |
+| eigene Vorlagen | `%USERPROFILE%\.claude-mail\templates.json` |
 | Versandprotokoll | `%USERPROFILE%\.claude-mail\sent.log` |
 | Passwort | nur in der Umgebungsvariable bzw. in den Desktop-Einstellungen, nie in einer Datei des Plugins |
 
@@ -210,10 +273,13 @@ Andere Orte lassen sich mit den Umgebungsvariablen `EMAIL_DRAFT_DIR`, `MAIL_STAT
 | „SMTP is not configured“ | App-Passwort, Server und Benutzer fehlen. Siehe „Senden einrichten“. |
 | „CONFIRMATION REQUIRED“ | Normal: Claude muss dich vor dem Senden fragen. |
 | Anmeldung beim Senden schlägt fehl | App-Passwort statt normalem Passwort verwenden; Port 587 mit starttls. |
+| „Unknown contact“ | Den Namen gibt es nicht in den Kontakten. Mit `/mail-contacts` anlegen oder die Adresse angeben. |
+| „Classic Outlook is not available“ | Nur das neue Outlook ist installiert. `/mail-profile Entwürfe als Datei` stellt zurück; die .eml-Datei funktioniert weiter. |
 
 ## Grenzen
 
-- Entwürfe sind `.eml`-Dateien. Sie landen nicht automatisch im Entwürfe-Ordner deines Postfachs.
+- Entwürfe sind `.eml`-Dateien. Direkt im Postfach landen sie nur mit dem klassischen Outlook (siehe „Entwürfe direkt in Outlook“).
+- Die Dateisuche durchsucht nur Dateinamen in den üblichen Ordnern, nicht den Inhalt.
 - Das Plugin liest keine Posteingänge. Um auf eine Mail zu antworten, füge sie in den Chat ein.
 - Senden geht über SMTP mit App-Passwort, nicht über eine Google- oder Microsoft-Anmeldung (OAuth).
 - Wie die Schrift aussieht, hängt am Ende vom Mailprogramm des Empfängers ab.

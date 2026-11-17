@@ -2,20 +2,33 @@
   "manifest_version": "0.2",
   "name": "mail-assistant",
   "display_name": "Mail Assistant",
-  "version": "4.1.0",
-  "description": "Emails nach DIN 5008 in Calibri: Anhänge, Bilder im Text, jede Schrift, Entwürfe und Senden mit Rechtestufen.",
+  "version": "5.0.0",
+  "description": "Emails nach DIN 5008 in Calibri: Kontakte, Vorlagen, Dateisuche, Anhänge, Logo-Signatur, Outlook-Entwürfe und Senden mit Rechtestufen.",
   "long_description": "Erstellt E-Mails als fertige Entwürfe nach DIN 5008 (Leerzeilen, Anrede, Grußformel, Datum, Uhrzeit, Beträge, Telefonnummern) in Calibri 11 pt oder jeder anderen Schrift, mit Dateianhängen und Bildern im Text. Senden ist standardmäßig aus; du wählst zwischen nur Entwürfe, vor dem Senden fragen und autonomem Senden an eine Erlaubnisliste. Befehle wie mail, mail-check und mail-help stehen als Prompts bereit. Ausführliche Anleitung: Tool email_help oder ANLEITUNG.md.",
-  "author": { "name": "xSiTeX" },
-  "repository": { "type": "git", "url": "https://github.com/xSiTeX/Claude-x-Email" },
+  "author": {
+    "name": "xSiTeX"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xSiTeX/Claude-x-Email"
+  },
   "homepage": "https://github.com/xSiTeX/Claude-x-Email",
   "license": "MIT",
-  "keywords": ["email", "din5008", "calibri", "attachments", "drafts"],
+  "keywords": [
+    "email",
+    "din5008",
+    "calibri",
+    "attachments",
+    "drafts"
+  ],
   "server": {
     "type": "python",
     "entry_point": "server/server.py",
     "mcp_config": {
       "command": "python",
-      "args": ["${__dirname}/server/server.py"],
+      "args": [
+        "${__dirname}/server/server.py"
+      ],
       "env": {
         "MAIL_SMTP_HOST": "${user_config.smtp_host}",
         "MAIL_SMTP_USER": "${user_config.smtp_user}",
@@ -25,22 +38,104 @@
     }
   },
   "tools": [
-    { "name": "email_draft", "description": "Entwurf nach DIN 5008 mit Anhängen, Bildern und Schrift erstellen" },
-    { "name": "email_check", "description": "Mail gegen DIN 5008 prüfen und das genaue Layout zeigen" },
-    { "name": "email_send", "description": "Entwurf nach Rechtestufe senden" },
-    { "name": "email_list_drafts", "description": "Letzte Entwürfe auflisten" },
-    { "name": "email_profile_get", "description": "Profil, Grußformel-Vorschau und Rechtestufe zeigen" },
-    { "name": "email_profile_set", "description": "Name, Grußformel, Signatur, Sprache, Schrift, SMTP speichern" },
-    { "name": "email_permissions_set", "description": "Rechtestufe ändern (nur auf Wunsch des Nutzers)" },
-    { "name": "email_setup_check", "description": "Einrichtung prüfen" },
-    { "name": "email_files_check", "description": "Anhänge und Größen prüfen" },
-    { "name": "email_help", "description": "Ausführliche Anleitung auf Deutsch" }
+    {
+      "name": "email_draft",
+      "description": "Entwurf nach DIN 5008 mit Anhängen, Bildern und Schrift erstellen"
+    },
+    {
+      "name": "email_check",
+      "description": "Mail gegen DIN 5008 prüfen und das genaue Layout zeigen"
+    },
+    {
+      "name": "email_send",
+      "description": "Entwurf nach Rechtestufe senden"
+    },
+    {
+      "name": "email_list_drafts",
+      "description": "Letzte Entwürfe auflisten"
+    },
+    {
+      "name": "email_profile_get",
+      "description": "Profil, Grußformel-Vorschau und Rechtestufe zeigen"
+    },
+    {
+      "name": "email_profile_set",
+      "description": "Name, Grußformel, Signatur, Sprache, Schrift, SMTP speichern"
+    },
+    {
+      "name": "email_permissions_set",
+      "description": "Rechtestufe ändern (nur auf Wunsch des Nutzers)"
+    },
+    {
+      "name": "email_setup_check",
+      "description": "Einrichtung prüfen"
+    },
+    {
+      "name": "email_files_check",
+      "description": "Anhänge und Größen prüfen"
+    },
+    {
+      "name": "email_help",
+      "description": "Ausführliche Anleitung auf Deutsch"
+    },
+    {
+      "name": "email_contacts",
+      "description": "Kontakte anzeigen und suchen"
+    },
+    {
+      "name": "email_contact_set",
+      "description": "Kontakt speichern (Adresse, Du/Sie, Anrede)"
+    },
+    {
+      "name": "email_contact_delete",
+      "description": "Kontakt löschen"
+    },
+    {
+      "name": "email_templates",
+      "description": "Vorlagen anzeigen und ausfüllen"
+    },
+    {
+      "name": "email_template_set",
+      "description": "Eigene Vorlage speichern"
+    },
+    {
+      "name": "email_template_delete",
+      "description": "Eigene Vorlage löschen"
+    },
+    {
+      "name": "email_find_files",
+      "description": "Dateien zum Anhängen per Namen finden"
+    }
   ],
   "prompts_generated": true,
   "user_config": {
-    "smtp_host": { "type": "string", "title": "SMTP-Server (nur zum Senden)", "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com", "required": false, "default": "" },
-    "smtp_user": { "type": "string", "title": "SMTP-Benutzer / E-Mail-Adresse (nur zum Senden)", "required": false, "default": "" },
-    "smtp_password": { "type": "string", "title": "App-Passwort (nur zum Senden)", "description": "Ein App-Passwort deines Mailanbieters, nicht dein normales Passwort.", "sensitive": true, "required": false, "default": "" }
+    "smtp_host": {
+      "type": "string",
+      "title": "SMTP-Server (nur zum Senden)",
+      "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com",
+      "required": false,
+      "default": ""
+    },
+    "smtp_user": {
+      "type": "string",
+      "title": "SMTP-Benutzer / E-Mail-Adresse (nur zum Senden)",
+      "required": false,
+      "default": ""
+    },
+    "smtp_password": {
+      "type": "string",
+      "title": "App-Passwort (nur zum Senden)",
+      "description": "Ein App-Passwort deines Mailanbieters, nicht dein normales Passwort.",
+      "sensitive": true,
+      "required": false,
+      "default": ""
+    }
   },
-  "compatibility": { "platforms": ["win32", "darwin", "linux"] }
+  "compatibility": {
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ]
+  }
 }

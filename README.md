@@ -11,6 +11,11 @@ Defaults: **German DIN 5008 layout, Calibri 11 pt, black.** Clearly English text
 3. **Attachments and images.** Attach any files and place pictures inside the text.
 4. **Any font.** Calibri 11 pt by default, any other font by name, with fallbacks. Font set on every paragraph so Outlook keeps it.
 5. **Permission levels.** From "drafts only" to "autonomous sending", with an allow-list and a daily limit.
+6. **Contacts.** `/mail Mehdi, ...` is enough: address, du/Sie, salutation and closing come from the saved contact, and the salutation is checked against it (wrong gender, du/Sie mismatch, wrong name).
+7. **Templates.** Built-in templates for invoice, appointment, cancellation, follow-up and offer, plus your own with `{{placeholders}}`.
+8. **File finder.** "Attach the latest invoice" searches Downloads, Documents, Desktop, Pictures and OneDrive by file name; Claude attaches only after you confirm.
+9. **Signature with logo** and optional HTML signature.
+10. **Drafts straight into Outlook** (classic Outlook on Windows), falling back to the .eml file.
 
 Mails are built as `.eml` files that open as unsent drafts in Outlook, Thunderbird or Apple Mail. Sending is **off by default**.
 
@@ -22,7 +27,9 @@ Mails are built as `.eml` files that open as unsent drafts in Outlook, Thunderbi
 | `/mail-reply <mail>` | Answer a received email |
 | `/mail-check [text or draft]` | Check against DIN 5008 and correct |
 | `/mail-send [draft]` | Send a draft (by permission level) |
-| `/mail-profile [values]` | Name, closing, signature, language, font |
+| `/mail-profile [values]` | Name, closing, signature, logo, language, font, Outlook |
+| `/mail-contacts [data]` | Contacts with address, du/Sie, salutation |
+| `/mail-templates [name]` | Templates for recurring mails |
 | `/mail-permissions [level]` | Draft only / ask before send / autonomous |
 | `/mail-setup` | Overview and diagnosis |
 | `/mail-help [topic]` | Detailed explanation in German |
@@ -67,6 +74,9 @@ Full rules: [`din5008.md`](mail-assistant/skills/write-email/references/din5008.
 | `email_setup_check` | Diagnosis |
 | `email_files_check` | File sizes against the 25 MB limit |
 | `email_help` | The German guide, whole or one topic |
+| `email_contacts` / `email_contact_set` / `email_contact_delete` | Contacts |
+| `email_templates` / `email_template_set` / `email_template_delete` | Templates |
+| `email_find_files` | Find files to attach by name |
 
 The version 3 tool names (`create_email_draft`, `send_email`, ...) still work.
 
@@ -99,7 +109,7 @@ claude --plugin-dir path/to/Claude-x-Email/mail-assistant
 
 ### Claude Desktop app
 
-- **Extension:** open `dist/mail-assistant.mcpb` and click *Install*. SMTP fields are optional and only needed for sending.
+- **Extension:** download `mail-assistant.mcpb` from the [Releases page](https://github.com/xSiTeX/Claude-x-Email/releases) (or `dist/`), open it and click *Install*. SMTP fields are optional and only needed for sending.
 - **Skills:** upload the zips from `dist/skills/` in *Settings > Capabilities > Skills* so Claude knows the writing and layout rules. (Slash commands are a Claude Code feature; in the Desktop app just ask in plain language.)
 - **Manual alternative:** add to `claude_desktop_config.json`:
 
@@ -131,11 +141,13 @@ Never type the password in chat.
 | `desktop/` | `manifest.json` and `build.py` for the Desktop extension and skill zips |
 | `dist/` | Built `mail-assistant.mcpb` and skill zips (`python desktop/build.py` rebuilds) |
 | `tests/` | `python -m unittest discover -s tests` |
+| `.github/workflows/` | CI: tests on Windows/Linux/macOS for every push; a tag `v*` builds and publishes a release with the `.mcpb` and skill zips |
 
 ## Limits
 
 - Total attachment size ~25 MB. Font rendering depends on the mail app and the fonts installed on the recipient's system.
 - Sending uses plain SMTP with an app password. OAuth (Gmail API, Microsoft Graph) and reading the inbox are not included.
-- Drafts are `.eml` files in `Documents/ClaudeEmailDrafts`, not entries in your mailbox's Drafts folder.
+- Drafts are `.eml` files in `Documents/ClaudeEmailDrafts`. Only classic Outlook on Windows can receive them directly; the new Outlook has no automation interface.
+- Requires Python 3 for both Claude Code and the Desktop extension.
 
 MIT License.

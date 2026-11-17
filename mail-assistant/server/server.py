@@ -33,7 +33,7 @@ from email.parser import BytesParser
 from email import policy
 from email.utils import formatdate, make_msgid, getaddresses
 
-VERSION = "4.1.0"
+VERSION = "5.0.0"
 MAX_TOTAL = 25 * 1024 * 1024
 HOME = os.path.expanduser("~")
 OUT_DIR = os.path.abspath(os.environ.get("EMAIL_DRAFT_DIR") or os.path.join(HOME, "Documents", "ClaudeEmailDrafts"))
@@ -286,7 +286,8 @@ def compose(args, prof):
     fixes, warns = [], []
     body = args.get("body") or ""
     html_body = args.get("html_body") or ""
-    lang = lang_of(args.get("language") or prof.get("language"),
+    contact = args.get("_contact")
+    lang = lang_of(args.get("language") or (contact or {}).get("language") or prof.get("language"),
                    " ".join([args.get("salutation") or "", body, html_body]))
     de = lang == "de"
 
@@ -315,7 +316,16 @@ def compose(args, prof):
                 fixes.append("Inserted the blank line after the salutation.")
             else:
                 paras.pop(0)
+    if not salutation and contact:
+        salutation = contact_salutation(contact, lang)
+        fixes.append("Salutation taken from contact '%s'." % contact["name"])
     if salutation:
+        fixed = re.sub(r"(?i)^sehr geehrte\s+herr\b", "Sehr geehrter Herr", salutation)
+        fixed = re.sub(r"(?i)^sehr geehrter\s+frau\b", "Sehr geehrte Frau", fixed)
+        if fixed != salutation:
+            fixes.append("Grammar: '%s' -> '%s'." % (salutation.split(" ")[1], fixed.split(" ")[1]))
+            salutation = fixed
+        warns += salutation_warnings(salutation, contact)
         if not salutation.endswith((",", ":", "!")):
             salutation = salutation.rstrip(".;") + ","
             fixes.append("Added the comma after the salutation.")
@@ -359,6 +369,8 @@ def compose(args, prof):
                 name = "\n".join(tail[1:])
     if closing is None:
         closing = args.get("closing")
+        if closing is None and contact:
+            closing = contact.get("closing") or ("Viele Grüße" if de and contact.get("address") == "du" else None)
         if closing is None:
             closing = prof_closing or DEFAULT_CLOSING[lang]
     closing = (closing or "").strip()
@@ -393,8 +405,12 @@ def compose(args, prof):
                 blocks.append(("text", name_lines))
         else:
             blocks.append(("text", [closing] + name_lines))
-    if sig_lines:
-        blocks.append(("sig", sig_lines))
+    sig_html = (prof.get("signature_html") or "").strip() if use_sig else ""
+    logo = args.get("_logo")  # (cid, width) when a logo image is attached
+    if sig_lines or sig_html or logo:
+        if not sig_lines and sig_html:
+            sig_lines = [l for p in html_to_paragraphs(sig_html) for l in p]
+        blocks.append(("sig", sig_lines, sig_html, logo))
 
     plain = render_plain(blocks)
     warns += norm_warnings(subject, plain, args, lang)
@@ -451,7 +467,7 @@ def render_plain(blocks):
             out.append("\n\n".join("\n".join(p) for p in b[2]))
         elif b[0] == "img":
             out.append("[%s]" % b[2])
-        elif b[0] == "sig":
+        elif b[0] == "sig" and b[1]:
             out.append("-- \n" + "\n".join(b[1]))
     return "\n\n".join(x for x in out if x) + "\n"
 
@@ -498,7 +514,13 @@ def render_html(blocks, font, size, lang):
             parts.append(P('<img src="cid:%s" alt="%s" style="max-width:100%%;height:auto;border:0">'
                            % (b[1], html.escape(b[2]))))
         elif b[0] == "sig":
-            parts.append(P("<br>".join(html.escape(l) for l in b[1])))
+            sig_html, logo = b[2], b[3]
+            inner = normalize_html(sig_html, ps, spacer) if sig_html else \
+                (P("<br>".join(html.escape(l) for l in b[1])) if b[1] else "")
+            if logo:
+                inner += P('<img src="cid:%s" alt="Logo" width="%d" style="width:%dpx;height:auto;border:0">'
+                           % (logo[0], logo[1], logo[1]))
+            parts.append(inner)
     return ('<!DOCTYPE html><html lang="%s"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             '<style>p{margin:0}</style></head>'
@@ -522,6 +544,387 @@ def report(c):
     if not c["fixes"] and not c["warnings"]:
         out.append("Norm check: no issues.")
     return "\n".join(out)
+
+
+# ================================================================ contacts
+CONTACTS_PATH = os.path.join(STATE_DIR, "contacts.json")
+CONTACT_KEYS = ("email", "address", "gender", "title", "first_name", "last_name", "language", "salutation",
+                "closing", "notes")
+
+
+def load_json(path, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def norm_key(s):
+    s = (s or "").strip().lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(a, b)
+    return re.sub(r"\s+", " ", s)
+
+
+def contact_parts(c):
+    first = c.get("first_name") or c["name"].split(" ")[0]
+    last = c.get("last_name") or (c["name"].split(" ", 1)[1] if " " in c["name"] else "")
+    return first, last
+
+
+def contact_salutation(c, lang):
+    if c.get("salutation"):
+        return c["salutation"]
+    first, last = contact_parts(c)
+    title = (c.get("title") or "").strip()
+    last_t = ("%s %s" % (title, last)).strip() if last else ""
+    informal = c.get("address") == "du"
+    g = (c.get("gender") or "").lower()[:1]
+    if lang == "de":
+        if informal or not last:
+            return "Hallo %s," % first
+        if g in ("f", "w"):
+            return "Sehr geehrte Frau %s," % last_t
+        if g == "m":
+            return "Sehr geehrter Herr %s," % last_t
+        return "Guten Tag %s %s," % (first, last)
+    if informal or not last:
+        return "Hi %s," % first
+    if g in ("f", "w"):
+        return "Dear Ms %s," % last_t
+    if g == "m":
+        return "Dear Mr %s," % last_t
+    return "Dear %s %s," % (first, last)
+
+
+def salutation_warnings(sal, c):
+    """Point 8: does the salutation fit the contact?"""
+    if not c:
+        return []
+    w, s = [], sal.lower()
+    first, last = contact_parts(c)
+    g = (c.get("gender") or "").lower()[:1]
+    group = re.search(r"damen und herren|zusammen|\balle\b|team|everyone|all\b", s)
+    if g in ("f", "w") and re.search(r"\bherrn?\b(?! und)|\bmr\.?\b", s) and "herren" not in s:
+        w.append("Salutation uses 'Herr/Mr', but %s is saved as female." % c["name"])
+    if g == "m" and re.search(r"\bfrau\b|\bms\.?\b|\bmrs\.?\b", s):
+        w.append("Salutation uses 'Frau/Ms', but %s is saved as male." % c["name"])
+    if c.get("address") == "du" and re.match(r"(sehr geehrte|dear (mr|ms|mrs))", s):
+        w.append("You say 'du' to %s; a formal salutation sounds odd. Use e.g. 'Hallo %s,'." % (c["name"], first))
+    if c.get("address") == "sie" and re.match(r"(hallo|hi|hey|liebe|lieber|moin|servus)\s+%s\b" % re.escape(first.lower()), s):
+        w.append("You say 'Sie' to %s; use a formal salutation, e.g. '%s'." % (c["name"], contact_salutation(
+            dict(c, salutation=""), "de")))
+    if not group and first.lower() not in s and (not last or last.lower() not in s) \
+            and not c.get("salutation"):
+        w.append("Salutation does not contain %s's name." % c["name"])
+    return w
+
+
+def find_contact(term, contacts):
+    k = norm_key(term)
+    if k in contacts:
+        return contacts[k]
+    hits = [c for key, c in contacts.items()
+            if k in key or k == norm_key(c.get("email")) or k in norm_key(c.get("first_name"))
+            or k in norm_key(c.get("last_name"))]
+    return hits[0] if len(hits) == 1 else (hits or None)
+
+
+def resolve_recipients(args):
+    """Replace contact names in to/cc/bcc by 'Name <address>'. Returns (args, first_to_contact, error)."""
+    contacts = load_json(CONTACTS_PATH, {})
+    out = dict(args)
+    first = None
+    for key in ("to", "cc", "bcc"):
+        res = []
+        for item in args.get(key) or []:
+            if "@" in item:
+                res.append(item)
+                if key == "to" and first is None:
+                    addr = getaddresses([item])[0][1].lower()
+                    first = next((c for c in contacts.values() if (c.get("email") or "").lower() == addr), False)
+                continue
+            c = find_contact(item, contacts)
+            if c is None:
+                return out, None, ("Unknown contact '%s'. Give the address, or save the contact first "
+                                   "(email_contact_set)." % item)
+            if isinstance(c, list):
+                return out, None, "'%s' matches several contacts: %s. Be more specific." % (
+                    item, ", ".join(x["name"] for x in c))
+            if not c.get("email"):
+                return out, None, "Contact '%s' has no email address yet." % c["name"]
+            res.append("%s <%s>" % (c["name"], c["email"]))
+            if key == "to" and first is None:
+                first = c
+        out[key] = res
+    return out, (first or None), None
+
+
+def tool_contacts(args):
+    contacts = load_json(CONTACTS_PATH, {})
+    q = norm_key(args.get("query"))
+    rows = [c for k, c in sorted(contacts.items())
+            if not q or q in k or q in norm_key(c.get("email")) or q in norm_key(c.get("notes"))]
+    if not rows:
+        return ("No contacts%s. Save one with email_contact_set." % (" for '%s'" % args["query"]
+                                                                     if q else "")), False
+    lines = ["Contacts (%d):" % len(rows)]
+    for c in rows:
+        lang = lang_of(c.get("language") or load_profile().get("language"))
+        lines.append("- %s <%s> | %s | salutation: %s%s" % (
+            c["name"], c.get("email") or "no address", c.get("address") or "sie",
+            contact_salutation(c, lang), (" | " + c["notes"]) if c.get("notes") else ""))
+    return "\n".join(lines), False
+
+
+def tool_contact_set(args):
+    name = (args.get("name") or "").strip()
+    if not name:
+        return "name is required.", True
+    contacts = load_json(CONTACTS_PATH, {})
+    key = norm_key(name)
+    c = contacts.get(key, {"name": name})
+    c["name"] = name
+    for k in CONTACT_KEYS:
+        if k in args:
+            c[k] = (args[k] or "").strip() if isinstance(args[k], str) else args[k]
+    if c.get("address") and c["address"] not in ("du", "sie"):
+        return "address must be 'du' or 'sie'.", True
+    if c.get("email") and not EMAIL_OK.match(c["email"]):
+        return "Email address looks invalid: %s" % c["email"], True
+    contacts[key] = c
+    save_json(CONTACTS_PATH, contacts)
+    lang = lang_of(c.get("language") or load_profile().get("language"))
+    return "Contact saved: %s <%s>, %s. Salutation: %s" % (
+        name, c.get("email") or "no address", c.get("address") or "sie", contact_salutation(c, lang)), False
+
+
+def tool_contact_delete(args):
+    contacts = load_json(CONTACTS_PATH, {})
+    key = norm_key(args.get("name"))
+    if key not in contacts:
+        return "No contact named '%s'." % args.get("name"), True
+    del contacts[key]
+    save_json(CONTACTS_PATH, contacts)
+    return "Contact '%s' deleted." % args.get("name"), False
+
+
+# ================================================================ templates
+TEMPLATES_PATH = os.path.join(STATE_DIR, "templates.json")
+BUILTIN_TEMPLATES = {
+    "rechnung": {"description": "Rechnung verschicken",
+                 "subject": "Rechnung {{nummer}}",
+                 "body": "anbei erhalten Sie die Rechnung {{nummer}} vom {{datum}} über {{betrag}}.\n\n"
+                         "Bitte überweisen Sie den Betrag bis zum {{frist}} auf das in der Rechnung angegebene "
+                         "Konto.\n\nBei Fragen melden Sie sich gerne."},
+    "termin": {"description": "Termin bestätigen",
+               "subject": "Terminbestätigung {{datum}}",
+               "body": "hiermit bestätige ich unseren Termin am {{datum}} um {{uhrzeit}}.\n\nOrt: {{ort}}\n\n"
+                       "Falls sich etwas ändert, geben Sie mir bitte kurz Bescheid."},
+    "absage": {"description": "Höflich absagen",
+               "subject": "Absage: {{thema}}",
+               "body": "vielen Dank für {{anlass}}. Leider muss ich Ihnen mitteilen, dass {{grund}}.\n\n"
+                       "Ich bedaure das sehr und danke Ihnen für Ihr Verständnis."},
+    "nachfassen": {"description": "Freundlich nachfragen",
+                   "subject": "Nachfrage: {{thema}}",
+                   "body": "ich komme auf meine Nachricht vom {{datum}} zum Thema {{thema}} zurück. Hatten Sie "
+                           "schon Gelegenheit, sich das anzusehen?\n\nÜber eine kurze Rückmeldung bis zum {{frist}} "
+                           "würde ich mich freuen."},
+    "angebot": {"description": "Angebot schicken",
+                "subject": "Angebot {{nummer}}: {{thema}}",
+                "body": "vielen Dank für Ihre Anfrage. Im Anhang finden Sie unser Angebot {{nummer}} zum Thema "
+                        "{{thema}}.\n\nDas Angebot gilt bis zum {{frist}}. Für Rückfragen stehe ich Ihnen gerne "
+                        "zur Verfügung."},
+}
+PLACEHOLDER = re.compile(r"\{\{\s*([\w äöüß-]+?)\s*\}\}")
+
+
+def all_templates():
+    t = {k: dict(v, builtin=True) for k, v in BUILTIN_TEMPLATES.items()}
+    for k, v in load_json(TEMPLATES_PATH, {}).items():
+        t[k] = dict(v, builtin=False)
+    return t
+
+
+def fill_template(tpl, fields):
+    fields = {norm_key(k): str(v) for k, v in (fields or {}).items()}
+    missing = []
+
+    def rep(m):
+        k = norm_key(m.group(1))
+        if k in fields and fields[k].strip():
+            return fields[k]
+        if m.group(1) not in missing:
+            missing.append(m.group(1))
+        return m.group(0)
+
+    filled = {k: PLACEHOLDER.sub(rep, tpl.get(k) or "") for k in ("subject", "body", "closing")}
+    return filled, missing
+
+
+def tool_templates(args):
+    t = all_templates()
+    name = norm_key(args.get("name"))
+    if not name:
+        lines = ["Templates (fill with email_templates name + fields, or email_draft template + fields):"]
+        for k, v in sorted(t.items()):
+            ph = sorted(set(PLACEHOLDER.findall(v.get("subject", "") + v.get("body", ""))))
+            lines.append("- %s%s: %s | fields: %s" % (k, "" if v["builtin"] else " (own)", v.get("description", ""),
+                                                      ", ".join(ph) or "-"))
+        return "\n".join(lines), False
+    if name not in t:
+        return "No template '%s'. Available: %s" % (name, ", ".join(sorted(t))), True
+    filled, missing = fill_template(t[name], args.get("fields"))
+    out = "Template '%s'\nSubject: %s\n\n%s" % (name, filled["subject"], filled["body"])
+    if missing:
+        out += "\n\nStill missing fields: %s" % ", ".join(missing)
+    return out, False
+
+
+def tool_template_set(args):
+    name = norm_key(args.get("name"))
+    if not name or not args.get("body"):
+        return "name and body are required.", True
+    own = load_json(TEMPLATES_PATH, {})
+    own[name] = {k: args[k] for k in ("subject", "body", "closing", "description") if args.get(k)}
+    save_json(TEMPLATES_PATH, own)
+    ph = sorted(set(PLACEHOLDER.findall(args.get("subject", "") + args["body"])))
+    return "Template '%s' saved. Fields: %s" % (name, ", ".join(ph) or "none"), False
+
+
+def tool_template_delete(args):
+    own = load_json(TEMPLATES_PATH, {})
+    name = norm_key(args.get("name"))
+    if name not in own:
+        msg = "'%s' is a built-in template and cannot be deleted." if name in BUILTIN_TEMPLATES else \
+            "No own template named '%s'."
+        return msg % name, True
+    del own[name]
+    save_json(TEMPLATES_PATH, own)
+    return "Template '%s' deleted%s." % (name, " (the built-in version is used again)"
+                                         if name in BUILTIN_TEMPLATES else ""), False
+
+
+# ================================================================ find files
+SKIP_DIRS = {"appdata", "node_modules", ".git", "$recycle.bin", "__pycache__", ".cache", "library", "venv", ".venv"}
+
+
+def default_search_dirs():
+    dirs = [os.path.join(HOME, d) for d in ("Downloads", "Documents", "Desktop", "Pictures", "Dokumente", "Bilder")]
+    for od in [os.environ.get("OneDrive"), os.environ.get("OneDriveConsumer"), os.environ.get("OneDriveCommercial")]:
+        if od:
+            dirs.append(od)
+    seen, out = set(), []
+    for d in dirs:
+        r = os.path.realpath(d)
+        if os.path.isdir(d) and r.lower() not in seen:
+            seen.add(r.lower())
+            out.append(d)
+    return out
+
+
+def tool_find_files(args):
+    words = [norm_key(w) for w in re.split(r"[\s,]+", args.get("query") or "") if w.strip()]
+    exts = [("." + e.lower().lstrip(".")) for e in (args.get("extensions") or [])]
+    folders = [os.path.expanduser(f) for f in (args.get("folders") or [])] or default_search_dirs()
+    days = args.get("days")
+    limit = int(args.get("limit") or 10)
+    cutoff = (datetime.datetime.now() - datetime.timedelta(days=int(days))).timestamp() if days else 0
+    found, scanned, seen = [], 0, set()
+    for root in folders:
+        base_depth = root.rstrip("\\/").count(os.sep)
+        for cur, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d.lower() not in SKIP_DIRS and not d.startswith(".")]
+            if cur.count(os.sep) - base_depth >= 5:
+                dirs[:] = []
+            for fn in files:
+                scanned += 1
+                if scanned > 60000:
+                    break
+                low = norm_key(fn)
+                if words and not all(w in low for w in words):
+                    continue
+                if exts and not low.endswith(tuple(exts)):
+                    continue
+                p = os.path.normpath(os.path.join(cur, fn))
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+                if st.st_mtime < cutoff or os.path.realpath(p).lower() in seen:
+                    continue
+                seen.add(os.path.realpath(p).lower())
+                found.append((st.st_mtime, st.st_size, p))
+    found.sort(reverse=True)
+    if not found:
+        return "No files found for '%s' in: %s" % (args.get("query") or "*", "; ".join(folders)), False
+    lines = ["Files (newest first). Confirm with the user before attaching:"]
+    for i, (mt, size, p) in enumerate(found[:limit], 1):
+        lines.append("%d. %s | %s | %.1f KB\n   %s" % (
+            i, os.path.basename(p), datetime.datetime.fromtimestamp(mt).strftime("%d.%m.%Y %H:%M"), size / 1024, p))
+    if len(found) > limit:
+        lines.append("(%d more)" % (len(found) - limit))
+    return "\n".join(lines), False
+
+
+# ================================================================ Outlook (classic, Windows)
+OUTLOOK_PS = r"""
+$ErrorActionPreference = 'Stop'
+$d = Get-Content -Raw -Encoding UTF8 -LiteralPath $args[0] | ConvertFrom-Json
+try { $ol = New-Object -ComObject Outlook.Application }
+catch { Write-Output "NO_OUTLOOK: $($_.Exception.Message)"; exit 2 }
+$m = $ol.CreateItem(0)
+$m.Subject = $d.subject
+if ($d.to) { $m.To = $d.to }
+if ($d.cc) { $m.CC = $d.cc }
+if ($d.bcc) { $m.BCC = $d.bcc }
+foreach ($a in $d.attachments) { [void]$m.Attachments.Add($a) }
+foreach ($i in $d.inline) {
+  $att = $m.Attachments.Add($i.path, 1, 0)
+  $att.PropertyAccessor.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x3712001F', $i.cid)
+}
+$m.HTMLBody = $d.html
+$m.Save()
+if ($d.open) { $m.Display() }
+Write-Output 'OK'
+"""
+
+
+def outlook_draft(payload):
+    """Create the draft in classic Outlook via COM. Returns (ok, message)."""
+    if sys.platform != "win32":
+        return False, "Outlook drafts need Windows with classic Outlook."
+    os.makedirs(STATE_DIR, exist_ok=True)
+    script = os.path.join(STATE_DIR, "outlook_draft.ps1")
+    data = os.path.join(STATE_DIR, "outlook_payload.json")
+    with open(script, "w", encoding="utf-8-sig") as f:
+        f.write(OUTLOOK_PS)
+    with open(data, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                            "-File", script, data], capture_output=True, text=True, timeout=90)
+        out = (r.stdout or "").strip() + (r.stderr or "").strip()
+    except Exception as e:
+        return False, "PowerShell failed: %s" % e
+    finally:
+        try:
+            os.remove(data)
+        except OSError:
+            pass
+    if out.endswith("OK"):
+        return True, "Draft created in Outlook (Drafts folder)."
+    if "NO_OUTLOOK" in out or "80040154" in out:
+        return False, ("Classic Outlook is not available (the new Outlook has no automation interface). "
+                       "Used the .eml file instead.")
+    return False, "Outlook error: %s" % out[-300:]
 
 
 # ================================================================ files
@@ -551,6 +954,28 @@ def tool_files_check(args):
     return "\n".join(lines), bool(errors) or total > MAX_TOTAL
 
 
+def prepare(args):
+    """Apply a template and resolve contact names. Returns (args, error)."""
+    a = dict(args)
+    if a.get("template"):
+        t = all_templates()
+        name = norm_key(a["template"])
+        if name not in t:
+            return a, "No template '%s'. Available: %s" % (name, ", ".join(sorted(t)))
+        filled, missing = fill_template(t[name], a.get("fields"))
+        if missing:
+            return a, "Template '%s' needs these fields: %s (pass them in fields)." % (name, ", ".join(missing))
+        if not a.get("subject"):
+            a["subject"] = filled["subject"]
+        if not a.get("body") and not a.get("html_body"):
+            a["body"] = filled["body"]
+        if filled["closing"] and a.get("closing") is None:
+            a["closing"] = filled["closing"]
+    a, contact, err = resolve_recipients(a)
+    a["_contact"] = contact
+    return a, err
+
+
 def tool_check(args):
     prof = load_profile()
     if args.get("draft_path"):
@@ -567,15 +992,20 @@ def tool_check(args):
         c["fixes"] = []
         return "Draft: %s\nSubject: %s\nLayout:\n%s\n\n%s" % (
             path, msg["Subject"], visible(c["plain"]), report(c)), False
-    a = dict(args)
+    a, err = prepare(args)
+    if err:
+        return err, True
     a["_font_size"] = args.get("font_size") or prof.get("font_size") or "11pt"
     c = compose(a, prof)
-    return "Layout: %s\nSubject: %s\n\n%s\n\n%s\n\nNothing was written. Call email_draft with the same " \
-           "arguments to create the draft." % (LAYOUT_NAME[c["lang"]], c["subject"], visible(c["plain"]),
-                                                report(c)), False
+    return "Layout: %s\nTo: %s\nSubject: %s\n\n%s\n\n%s\n\nNothing was written. Call email_draft with the same " \
+           "arguments to create the draft." % (LAYOUT_NAME[c["lang"]], ", ".join(a.get("to") or []) or "-",
+                                                c["subject"], visible(c["plain"]), report(c)), False
 
 
 def tool_draft(args):
+    args, err = prepare(args)
+    if err:
+        return err, True
     att_info, errors, total = check_files(args.get("attachments"))
     img_info, e2, t2 = check_files(args.get("inline_images"))
     errors += e2
@@ -594,7 +1024,17 @@ def tool_draft(args):
     a["_draft"] = True
     a["_unreferenced_images"] = [(cid, os.path.basename(p)) for cid, p in cids
                                  if ("cid:" + cid) not in (args.get("html_body") or "")]
+    logo_warn = None
+    if prof.get("logo") and args.get("signature", True):
+        lp = os.path.expanduser(prof["logo"])
+        if os.path.isfile(lp):
+            a["_logo"] = ("siglogo", int(prof.get("logo_width") or 150))
+            cids.append(("siglogo", lp))
+        else:
+            logo_warn = "Signature logo not found: %s" % lp
     c = compose(a, prof)
+    if logo_warn:
+        c["warnings"].append(logo_warn)
 
     msg = EmailMessage()
     msg["Subject"] = c["subject"]
@@ -614,7 +1054,8 @@ def tool_draft(args):
     msg["Message-ID"] = make_msgid()
     msg["X-Unsent"] = "1"  # mail apps open this as an unsent compose window
     msg.set_content(c["plain"])
-    msg.add_alternative(render_html(c["blocks"], font, size, c["lang"]), subtype="html")
+    html_doc = render_html(c["blocks"], font, size, c["lang"])
+    msg.add_alternative(html_doc, subtype="html")
     html_part = msg.get_payload()[1]
     for cid, p in cids:
         mt, st = guess(p)
@@ -637,7 +1078,16 @@ def tool_draft(args):
     with open(out, "wb") as f:
         f.write(bytes(msg))
     note = ""
-    if args.get("open", True):
+    where = "file"
+    if (args.get("target") or prof.get("draft_target") or "file") == "outlook":
+        ok, info = outlook_draft({
+            "subject": c["subject"], "html": html_doc, "open": bool(args.get("open", True)),
+            "to": "; ".join(args.get("to") or []), "cc": "; ".join(args.get("cc") or []),
+            "bcc": "; ".join(args.get("bcc") or []),
+            "attachments": [p for p, _ in att_info], "inline": [{"path": p, "cid": cid} for cid, p in cids]})
+        note = "\n" + info
+        where = "outlook" if ok else "file"
+    if where == "file" and args.get("open", True):
         try:
             if sys.platform == "win32":
                 os.startfile(out)
@@ -646,7 +1096,7 @@ def tool_draft(args):
             else:
                 subprocess.Popen(["xdg-open", out])
         except Exception as e:
-            note = " (could not open automatically: %s)" % e
+            note += " (could not open automatically: %s)" % e
     mode = autonomy(prof)["mode"]
     nxt = {"draft_only": "The user sends it from the mail app.",
            "ask_before_send": "Show the mail to the user and ask; send only after an explicit yes.",
@@ -762,10 +1212,20 @@ def tool_profile_get(args):
     return json.dumps(out, ensure_ascii=False, indent=2), False
 
 
-PROFILE_KEYS = ("name", "closing", "signature", "language", "tone", "font", "font_size", "from", "reply_to")
+PROFILE_KEYS = ("name", "closing", "signature", "signature_html", "logo", "logo_width", "language", "tone", "font",
+                "font_size", "from", "reply_to", "draft_target")
 
 
 def tool_profile_set(args):
+    if args.get("draft_target") and args["draft_target"] not in ("file", "outlook"):
+        return "draft_target must be 'file' or 'outlook'.", True
+    if args.get("logo"):
+        lp = os.path.expanduser(args["logo"])
+        if not os.path.isfile(lp):
+            return "Logo file not found: %s" % lp, True
+        if guess(lp)[0] != "image":
+            return "Logo must be an image (png, jpg, gif).", True
+        args = dict(args, logo=os.path.abspath(lp))
     p = load_profile()
     for k in PROFILE_KEYS:
         if k in args:
@@ -878,7 +1338,11 @@ INSTRUCTIONS = """Mail Assistant: writes emails as drafts with attachments, inli
 Defaults: German DIN 5008 layout and Calibri 11 pt, unless the user or profile says otherwise.
 Workflow:
 1. Call email_profile_get once per conversation (name, closing, signature, language, font, permission level).
-2. Write the mail: subject short and specific without "Betreff:"; one clear purpose; mention every attachment.
+2. Recipients: a name like "Mehdi" in `to` is looked up in the saved contacts (email_contacts); the contact gives
+   address, du/Sie, salutation and language. Unknown person: ask for the address and offer to save the contact.
+   Recurring mails: check email_templates. Files named vaguely ("die letzte Rechnung"): email_find_files, then let
+   the user confirm the file before attaching.
+   Write the mail: subject short and specific without "Betreff:"; one clear purpose; mention every attachment.
 3. Call email_draft with salutation, body (main text only: no salutation, closing, name or signature) and,
    if needed, closing as separate fields. The server sets the blank lines, comma rules, dates (07.03.2026),
    times (14:30 Uhr), amounts (250 €), percent (10 %), phone numbers (+49 30 1234567) and the font.
@@ -901,6 +1365,9 @@ def tool_setup_check(args):
                  p.get("name") or "-", p.get("closing") or "(default)", p.get("language") or "auto",
                  LAYOUT_NAME[lang_of(p.get("language"))]),
              "Font: %s %s" % (p.get("font") or "Calibri", p.get("font_size") or "11pt"),
+             "Signature logo: %s | drafts go to: %s" % (p.get("logo") or "-", p.get("draft_target") or "file (.eml)"),
+             "Contacts: %d | own templates: %d (+%d built-in)" % (
+                 len(load_json(CONTACTS_PATH, {})), len(load_json(TEMPLATES_PATH, {})), len(BUILTIN_TEMPLATES)),
              "Permission level: %s" % a["mode"],
              "Allow-list: %s" % (", ".join(a["allowed_recipients"]) or "empty"),
              "Daily limit: %s (sent today: %d)" % (a["daily_limit"], sent_today()),
@@ -919,8 +1386,12 @@ def tool_setup_check(args):
 STR = {"type": "string"}
 STRS = {"type": "array", "items": STR}
 CONTENT_PROPS = {
-    "to": {"type": "array", "items": STR, "description": "Recipient addresses, 'Name <a@b.de>' allowed"},
+    "to": {"type": "array", "items": STR,
+           "description": "Recipient addresses ('Name <a@b.de>' allowed) or names of saved contacts (e.g. 'Mehdi'). "
+                          "A contact also gives salutation, du/Sie and language."},
     "cc": STRS, "bcc": STRS,
+    "template": {"type": "string", "description": "Template name (see email_templates), fills subject and body"},
+    "fields": {"type": "object", "description": "Values for the template placeholders, e.g. {\"datum\": \"07.03.2026\"}"},
     "subject": {"type": "string", "description": "Short and specific, without the word 'Betreff'"},
     "salutation": {"type": "string", "description": "Opening line, e.g. 'Sehr geehrte Frau Müller,' or 'Dear Ms Miller,'"},
     "body": {"type": "string", "description": "Main text only, WITHOUT salutation, closing, name or signature. "
@@ -945,6 +1416,9 @@ DRAFT_PROPS.update({
     "from": STR, "reply_to": STR,
     "in_reply_to": {"type": "string", "description": "Message-ID being answered"},
     "open": {"type": "boolean", "description": "Open the draft in the mail app (default true)"},
+    "target": {"type": "string", "enum": ["file", "outlook"],
+               "description": "file = .eml draft (default); outlook = also put it into classic Outlook's Drafts "
+                              "folder (Windows). Default from profile draft_target."},
 })
 CHECK_PROPS = dict(CONTENT_PROPS)
 CHECK_PROPS["draft_path"] = {"type": "string", "description": "Check an existing .eml draft instead of text"}
@@ -956,7 +1430,7 @@ TOOLS = [
                     "business style, with attachments, inline images and any font. The server assembles "
                     "salutation, text, closing, name and signature with the correct blank lines. "
                     "Opens in the mail app. Never sends.",
-     "inputSchema": {"type": "object", "properties": DRAFT_PROPS, "required": ["subject"]},
+     "inputSchema": {"type": "object", "properties": DRAFT_PROPS},
      "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}},
     {"name": "email_check",
      "description": "Check an email against DIN 5008 / business rules and show the exact final layout with "
@@ -979,11 +1453,14 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {}}, "annotations": RO},
     {"name": "email_profile_set",
      "description": "Save profile: name, closing (e.g. 'Freundliche Grüße'), signature (contact block only: "
-                    "company, phone, web), language (de/en), tone, font, font_size, from, reply_to, "
-                    "smtp {host, port, user, security}. No password is ever stored.",
+                    "company, phone, web), signature_html (optional rich signature), logo (image path shown under "
+                    "the signature), logo_width (px), language (de/en), tone, font, font_size, from, reply_to, "
+                    "draft_target (file|outlook), smtp {host, port, user, security}. No password is ever stored.",
      "inputSchema": {"type": "object", "properties": {
-         "name": STR, "closing": STR, "signature": STR, "language": STR, "tone": STR, "font": STR,
+         "name": STR, "closing": STR, "signature": STR, "signature_html": STR, "logo": STR,
+         "logo_width": {"type": "integer"}, "language": STR, "tone": STR, "font": STR,
          "font_size": STR, "from": STR, "reply_to": STR,
+         "draft_target": {"type": "string", "enum": ["file", "outlook"]},
          "smtp": {"type": "object", "properties": {
              "host": STR, "port": {"type": "integer"}, "user": STR,
              "security": {"type": "string", "enum": ["starttls", "ssl", "none"]}}}}},
@@ -1003,6 +1480,43 @@ TOOLS = [
      "description": "Check that attachment files exist and report sizes against the ~25 MB limit.",
      "inputSchema": {"type": "object", "properties": {"attachments": STRS, "inline_images": STRS}},
      "annotations": RO},
+    {"name": "email_contacts",
+     "description": "List or search saved contacts (name, address, du/Sie, salutation).",
+     "inputSchema": {"type": "object", "properties": {"query": STR}}, "annotations": RO},
+    {"name": "email_contact_set",
+     "description": "Save or update a contact. name is the key used in to/cc ('Mehdi'). address: du|sie; "
+                    "gender: f|m (for 'Sehr geehrte Frau/Sehr geehrter Herr'); title e.g. 'Dr.'; optional fixed "
+                    "salutation and closing; language de/en.",
+     "inputSchema": {"type": "object", "properties": {
+         "name": STR, "email": STR, "address": {"type": "string", "enum": ["du", "sie"]},
+         "gender": {"type": "string", "enum": ["f", "m", ""]}, "title": STR, "first_name": STR, "last_name": STR,
+         "language": STR, "salutation": STR, "closing": STR, "notes": STR}, "required": ["name"]},
+     "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}},
+    {"name": "email_contact_delete", "description": "Delete a saved contact (only when the user asks).",
+     "inputSchema": {"type": "object", "properties": {"name": STR}, "required": ["name"]},
+     "annotations": {"readOnlyHint": False, "destructiveHint": True, "openWorldHint": False}},
+    {"name": "email_templates",
+     "description": "List templates, or show one filled with fields (name + fields). Built-in: rechnung, termin, "
+                    "absage, nachfassen, angebot; plus the user's own.",
+     "inputSchema": {"type": "object", "properties": {"name": STR, "fields": {"type": "object"}}},
+     "annotations": RO},
+    {"name": "email_template_set",
+     "description": "Save an own template. Placeholders as {{field}}. body without salutation/closing.",
+     "inputSchema": {"type": "object", "properties": {"name": STR, "description": STR, "subject": STR,
+                                                      "body": STR, "closing": STR}, "required": ["name", "body"]},
+     "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}},
+    {"name": "email_template_delete", "description": "Delete an own template (only when the user asks).",
+     "inputSchema": {"type": "object", "properties": {"name": STR}, "required": ["name"]},
+     "annotations": {"readOnlyHint": False, "destructiveHint": True, "openWorldHint": False}},
+    {"name": "email_find_files",
+     "description": "Find files to attach by words in the file name, newest first (Downloads, Documents, Desktop, "
+                    "Pictures, OneDrive by default). Show the hits and let the user confirm before attaching.",
+     "inputSchema": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "Words in the file name, e.g. 'rechnung oktober'"},
+         "extensions": {"type": "array", "items": STR, "description": "e.g. ['pdf']"},
+         "folders": STRS, "days": {"type": "integer", "description": "Only files changed in the last N days"},
+         "limit": {"type": "integer"}}},
+     "annotations": RO},
     {"name": "email_help",
      "description": "Detailed German guide to the Mail Assistant (installation, commands, DIN 5008 layout, fonts, "
                     "attachments, permission levels, sending, where data is stored, troubleshooting). "
@@ -1015,6 +1529,10 @@ HANDLERS = {
     "email_list_drafts": tool_list_drafts, "email_profile_get": tool_profile_get,
     "email_profile_set": tool_profile_set, "email_permissions_set": tool_permissions_set,
     "email_setup_check": tool_setup_check, "email_files_check": tool_files_check, "email_help": tool_help,
+    "email_contacts": tool_contacts, "email_contact_set": tool_contact_set,
+    "email_contact_delete": tool_contact_delete, "email_templates": tool_templates,
+    "email_template_set": tool_template_set, "email_template_delete": tool_template_delete,
+    "email_find_files": tool_find_files,
 }
 # Names from version 3, still accepted.
 HANDLERS.update({"create_email_draft": tool_draft, "send_email": tool_send, "get_profile": tool_profile_get,
