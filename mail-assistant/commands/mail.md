@@ -1,8 +1,10 @@
 ---
-description: Write an email (optionally with attachments) and open it as an unsent draft
-argument-hint: <who / what the mail is about> [files]
+description: Write a new email (DIN 5008 layout, attachments, images, fonts) and open it as a draft
+argument-hint: <to whom, what about> [file paths]
 ---
 
-Use the `write-email` skill to write the email described here: $ARGUMENTS
+Write a new email with the `write-email` skill: $ARGUMENTS
 
-If files are mentioned, attach them with `create_email_draft`. Never send; the user sends it from their mail app.
+- Files the user names go into `attachments` (pictures to show inside the text into `inline_images`).
+- Create the draft with `email_draft`, then follow the permission level. Never send in level `draft_only`.
+- If no request was given, ask in one sentence who the mail is for and what it is about.

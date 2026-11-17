@@ -14,67 +14,160 @@ import server  # noqa: E402
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
-def call(name, **args):
-    return server.HANDLERS[name](args)
+def call(_tool, **args):
+    return server.HANDLERS[_tool](args)
 
 
-class MailTests(unittest.TestCase):
+def write(path, data, mode="w"):
+    with open(path, mode) as f:
+        f.write(data)
+
+
+def parse(path):
+    with open(path, "rb") as f:
+        return BytesParser(policy=policy.default).parse(f)
+
+
+def path_of(text):
+    return text.split("\n")[0].split(": ", 1)[1]
+
+
+class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.txt = os.path.join(TMP, "a.txt")
         cls.png = os.path.join(TMP, "p.png")
-        open(cls.txt, "w").write("hello")
-        open(cls.png, "wb").write(PNG)
+        write(cls.txt, "hello")
+        write(cls.png, PNG, "wb")
+
+    def setUp(self):
+        if os.path.exists(server.PROFILE_PATH):
+            os.remove(server.PROFILE_PATH)
 
     def draft(self, **kw):
-        text, err = call("create_email_draft", to=["x@example.com"], subject="Hi", body="Hallo\n\nWelt",
-                         attachments=[self.txt], open=False, **kw)
+        args = dict(to=["x@example.com"], subject="Hi", body="Hallo\n\nWelt", attachments=[self.txt], open=False)
+        args.update(kw)
+        text, err = call("email_draft", **args)
         self.assertFalse(err, text)
-        return text.split("\n")[0].split(": ", 1)[1]
+        return path_of(text)
 
-    def parse(self, path):
-        with open(path, "rb") as f:
-            return BytesParser(policy=policy.default).parse(f)
 
-    def test_draft_has_attachment_inline_image_and_calibri(self):
-        path = self.draft(inline_images=[self.png])
-        msg = self.parse(path)
+class LayoutTests(Base):
+    def test_din5008_full_layout(self):
+        call("email_profile_set", name="Max Muster", language="de",
+             signature="Muster GmbH\nTelefon +49 30 1234567")
+        text, err = call("email_check", subject="Betreff: Rechnung 2026-114.", salutation="Sehr geehrte Frau Müller",
+                         body="Anbei  erhalten Sie die Rechnung.\n\n\n\n   Bei Fragen melden Sie sich gerne.",
+                         attachments=[self.txt])
+        self.assertFalse(err)
+        path = self.draft(subject="Betreff: Rechnung 2026-114.", salutation="Sehr geehrte Frau Müller",
+                          body="Anbei  erhalten Sie die Rechnung.\n\n\n\n   Bei Fragen melden Sie sich gerne.")
+        msg = parse(path)
+        self.assertEqual(msg["Subject"], "Rechnung 2026-114")
+        self.assertEqual(msg.get_body(("plain",)).get_content(),
+                         "Sehr geehrte Frau Müller,\n\n"
+                         "anbei erhalten Sie die Rechnung.\n\n"
+                         "Bei Fragen melden Sie sich gerne.\n\n"
+                         "Freundliche Grüße\n\n"
+                         "Max Muster\n\n"
+                         "-- \nMuster GmbH\nTelefon +49 30 1234567\n")
+        self.assertIn("Rechnung 2026-114", text)
+
+    def test_closing_written_into_body_is_relaid(self):
+        call("email_profile_set", language="de")
+        text, _ = call("email_check", subject="x", salutation="Hallo Max,",
+                       body="Ich komme morgen.\nViele Grüße,\nAnna\nTeamleitung")
+        self.assertIn(" 3 | ich komme morgen.\n 4 | \n 5 | Viele Grüße\n 6 | \n 7 | Anna\n 8 | Teamleitung", text)
+
+    def test_salutation_inside_body_gets_blank_line(self):
+        text, _ = call("email_check", subject="x", language="de", body="Hallo Max,\nwie besprochen das Angebot.")
+        self.assertIn(" 1 | Hallo Max,\n 2 | \n 3 | wie besprochen", text)
+
+    def test_english_layout(self):
+        call("email_profile_set", name="Max Muster", language="en")
+        text, _ = call("email_check", subject="Offer", salutation="Dear Ms Miller", body="please find the offer below.")
+        self.assertIn("Dear Ms Miller,\n 2 | \n 3 | Please find", text)
+        self.assertIn("Kind regards,\n 6 | Max Muster", text)
+
+    def test_legacy_signature_is_split(self):
+        call("email_profile_set", signature="Freundliche Grüße, Max Muster\nMuster GmbH", language="de")
+        p = json.load(open(server.PROFILE_PATH, encoding="utf-8"))
+        self.assertEqual((p["closing"], p["name"], p["signature"]), ("Freundliche Grüße", "Max Muster", "Muster GmbH"))
+
+    def test_html_body_gets_norm_spacing(self):
+        call("email_profile_set", language="de", name="Max")
+        path = self.draft(salutation="Hallo Anna,",
+                          html_body="<p>im Anhang die Liste:</p><p></p><ul><li>eins</li></ul><p>Danke</p>")
+        h = parse(path).get_body(("html",)).get_content()
+        self.assertEqual(h.count("&nbsp;</p>"), 5)  # salutation|p|ul|p|closing|name
+        self.assertNotIn("<p>", h)
+        self.assertIn('<ul style="margin-top:0;margin-bottom:0;', h)
+
+    def test_warnings(self):
+        text, _ = call("email_check", subject="A" * 70, language="de", salutation="Hallo,",
+                       body="anbei die Datei. Ruf an: 030/123456")
+        self.assertIn("no file is attached", text)
+        self.assertIn("Phone number format", text)
+        self.assertIn("70 characters", text)
+        text, _ = call("email_check", subject="x", salutation="Hallo,", body="text", attachments=[self.txt])
+        self.assertIn("Attachment not mentioned", text)
+
+    def test_check_writes_nothing_and_checks_drafts(self):
+        before = os.listdir(server.OUT_DIR) if os.path.isdir(server.OUT_DIR) else []
+        call("email_check", subject="x", body="y")
+        after = os.listdir(server.OUT_DIR) if os.path.isdir(server.OUT_DIR) else []
+        self.assertEqual(before, after)
+        path = self.draft(salutation="Hallo Max,", body="im Anhang die Datei.")
+        text, err = call("email_check", draft_path=path)
+        self.assertFalse(err)
+        self.assertIn("Norm check: no issues.", text)
+        listing, _ = call("email_list_drafts")
+        self.assertIn(path, listing)
+
+
+class DraftTests(Base):
+    def test_attachment_inline_image_and_calibri(self):
+        msg = parse(self.draft(inline_images=[self.png]))
         names = [p.get_filename() for p in msg.walk()]
         self.assertIn("a.txt", names)
         self.assertIn("p.png", names)
         body = msg.get_body(("html",)).get_content()
-        self.assertIn("Calibri", body)
+        self.assertIn("'Calibri', Carlito", body)
         self.assertIn("cid:img1", body)
         self.assertEqual(msg["X-Unsent"], "1")
 
     def test_other_font(self):
-        path = self.draft(font="Cambria", font_size="12pt")
-        body = self.parse(path).get_body(("html",)).get_content()
+        body = parse(self.draft(font="Cambria", font_size="12pt")).get_body(("html",)).get_content()
         self.assertIn("'Cambria', Caladea", body)
-        self.assertIn("12pt", body)
+        self.assertIn("font-size:12pt", body)
 
-    def test_missing_file_and_signature(self):
-        text, err = call("create_email_draft", subject="x", attachments=["/nope.pdf"], open=False)
+    def test_missing_file(self):
+        _, err = call("email_draft", subject="x", attachments=["/nope.pdf"], open=False)
         self.assertTrue(err)
-        call("set_profile", signature="Gruss\nMax")
-        self.assertIn("Gruss", self.parse(self.draft()).get_body(("plain",)).get_content())
-        call("set_profile", signature="")
 
+    def test_old_tool_names_still_work(self):
+        text, err = call("create_email_draft", to=["x@example.com"], subject="Hi", body="x", open=False)
+        self.assertFalse(err, text)
+        _, err = call("get_profile")
+        self.assertFalse(err)
+
+
+class PermissionTests(Base):
     def test_draft_only_refuses_send(self):
-        call("set_profile", autonomy={"mode": "draft_only"})
-        text, err = call("send_email", draft_path=self.draft(), confirmed=True)
+        text, err = call("email_send", draft_path=self.draft(), confirmed=True)
         self.assertTrue(err)
         self.assertIn("disabled", text)
 
     def test_send_only_from_drafts_folder(self):
-        text, err = call("send_email", draft_path=self.txt, confirmed=True)
+        call("email_permissions_set", mode="ask_before_send")
+        _, err = call("email_send", draft_path=self.txt, confirmed=True)
         self.assertTrue(err)
 
-    def test_set_profile_rejects_bad_mode_and_stores_no_password(self):
-        _, err = call("set_profile", autonomy={"mode": "yolo"})
+    def test_bad_mode_and_no_password_stored(self):
+        _, err = call("email_permissions_set", mode="yolo")
         self.assertTrue(err)
-        call("set_profile", smtp={"host": "smtp.test", "user": "u@test", "password": "secret"})
-        self.assertNotIn("secret", open(os.environ["MAIL_PROFILE"]).read())
+        call("email_profile_set", smtp={"host": "smtp.test", "user": "u@test", "password": "secret"})
+        self.assertNotIn("secret", open(server.PROFILE_PATH).read())
 
     def test_ask_and_autonomous_flow(self):
         sent = []
@@ -82,33 +175,43 @@ class MailTests(unittest.TestCase):
         fake.__enter__.return_value = fake
         fake.send_message.side_effect = lambda m: sent.append(m)
         with mock.patch.dict(os.environ, {"MAIL_SMTP_PASSWORD": "pw"}), \
-                mock.patch("smtplib.SMTP", return_value=fake):
-            call("set_profile", smtp={"host": "smtp.test", "user": "me@test", "port": 587},
-                 autonomy={"mode": "ask_before_send", "allowed_recipients": ["@example.com"], "daily_limit": 5})
+                mock.patch("smtplib.SMTP", return_value=fake), \
+                mock.patch.object(server, "sent_today", lambda: len(sent)):
+            call("email_profile_set", smtp={"host": "smtp.test", "user": "me@test", "port": 587})
+            call("email_permissions_set", mode="ask_before_send", allowed_recipients=["@example.com"], daily_limit=5)
             path = self.draft()
-            text, err = call("send_email", draft_path=path)
+            text, err = call("email_send", draft_path=path)
             self.assertTrue(err)
             self.assertIn("CONFIRMATION REQUIRED", text)
+            self.assertIn("a.txt", text)
             self.assertEqual(sent, [])
-            text, err = call("send_email", draft_path=path, confirmed=True)
+            text, err = call("email_send", draft_path=path, confirmed=True)
             self.assertFalse(err, text)
             self.assertEqual(len(sent), 1)
             self.assertNotIn("X-Unsent", sent[0])
 
-            call("set_profile", autonomy={"mode": "autonomous"})
-            text, err = call("send_email", draft_path=self.draft())  # allow-listed domain
+            call("email_permissions_set", mode="autonomous")
+            text, err = call("email_send", draft_path=self.draft())
             self.assertFalse(err, text)
             self.assertEqual(len(sent), 2)
 
-            text, err = call("create_email_draft", to=["other@elsewhere.org"], subject="Hi", body="x", open=False)
-            text, err = call("send_email", draft_path=text.split("\n")[0].split(": ", 1)[1])
-            self.assertTrue(err)  # not allow-listed -> needs confirmation
+            text, _ = call("email_draft", to=["other@elsewhere.org"], subject="Hi", body="x", open=False)
+            text, err = call("email_send", draft_path=path_of(text))
+            self.assertTrue(err)
             self.assertIn("allow-list", text)
 
-            call("set_profile", autonomy={"daily_limit": 2})
-            text, err = call("send_email", draft_path=self.draft())
+            call("email_permissions_set", daily_limit=2)
+            text, _ = call("email_send", draft_path=self.draft())
             self.assertIn("limit", text)
-        call("set_profile", autonomy={"mode": "draft_only"})
+
+
+class ProtocolTests(unittest.TestCase):
+    def test_tools_list_and_unknown_tool(self):
+        names = [t["name"] for t in server.handle({"method": "tools/list", "id": 1})["result"]["tools"]]
+        self.assertTrue(all(n.startswith("email_") for n in names))
+        self.assertEqual(len(names), 9)
+        r = server.handle({"method": "tools/call", "id": 2, "params": {"name": "nope"}})
+        self.assertIn("error", r)
 
 
 if __name__ == "__main__":

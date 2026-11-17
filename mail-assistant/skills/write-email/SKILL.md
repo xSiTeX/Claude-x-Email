@@ -1,38 +1,43 @@
 ---
 name: write-email
-description: Use whenever the user wants to write, compose, draft or send an email, in any language. Applies good email craft, the saved profile (name, signature, language, font), attachments, inline images and the user's permission level for sending.
+description: Use whenever the user wants to write, compose, draft or send an email, in any language. Lays the mail out to DIN 5008 (German) or international business style, applies the saved profile (name, closing, signature, font), attaches files and inline images, and follows the user's permission level for sending.
 ---
 
 # Writing an email
 
-## 1. Load the profile and permission level
-Call `get_profile` once per session. Use its `language`, `name`, `signature`, `tone`, font and `autonomy.mode`. If there is no profile and the user wants one, offer `set_profile`. Run `check_setup` if anything misbehaves.
+## 1. Profile
+Call `email_profile_get` once per session: `name`, `closing`, `signature`, `language`, `tone`, `font`, permission level. No profile and the user writes regularly: suggest `/mail-profile` once, do not block on it.
 
 ## 2. Gather only what is missing
-Needed: recipient, purpose, key facts (dates, amounts, names), files and images. Ask one short question if something essential is missing, otherwise write. Never invent facts, dates, prices or promises.
+Needed: recipient, purpose, key facts (dates, amounts, names), files. Ask one short question if something essential is missing, otherwise write. Never invent facts, dates, prices or promises.
 
-## 3. Write it well
-- **Subject:** specific, under ~8 words ("Invoice 2026-114 attached", not "Question").
-- **Opening:** salutation that fits language and relationship (de: "Sehr geehrte Frau X," formal / "Hallo Max," informal; en: "Dear Ms X," / "Hi Max,"). Use the recipient's language or the thread's.
-- **Body:** purpose in the first sentence, short paragraphs, one clear request or next step with a deadline if there is one. 3-6 sentences for simple mails.
-- **Tone:** the user's wish, else the profile `tone`, else polite and direct. No filler ("I hope this finds you well"), no exaggerated apologies.
-- **Attachments:** mention each attached file in the text ("Im Anhang finden Sie ...") so text and attachments agree.
-- **Closing:** matching sign-off; the profile signature is appended automatically.
+## 3. Write the content
+- **Subject:** specific, max ~60 characters ("Rechnung 2026-114 für Oktober", not "Frage"). No "Betreff:".
+- **Salutation:** fits language and relationship (de: "Sehr geehrte Frau Müller," / "Hallo Max,"; en: "Dear Ms Miller," / "Hi Max,"). Use the recipient's language or the thread's.
+- **Body:** purpose in the first sentence, short paragraphs (2-4 sentences), one clear request or next step with a deadline if there is one. German after "Anrede," starts lower case.
+- **Tone:** the user's wish, else profile `tone`, else polite and direct. No filler, no exaggerated apologies.
+- **Attachments:** mention each file in the text ("Im Anhang finden Sie die Rechnung als PDF.").
+- **Closing:** pick one that fits the tone ("Freundliche Grüße", "Viele Grüße", "Kind regards,"), else leave it to the profile.
 
-## 4. Format (fonts, images, files)
-- Default font is the profile font, else Calibri 11pt. Any font name works via `font` / `font_size` (a fallback stack is added automatically).
-- Plain `body` is converted to clean paragraphs. For bold, lists, links, tables or mixed fonts pass `html_body` (inner HTML, `<span style="font-family:Cambria">` for a different font in one passage).
-- Files: `attachments` (absolute paths). Pictures shown inside the text: `inline_images`, referenced as `<img src="cid:img1">` (img2, img3 ...). Pictures not referenced are placed at the end.
-- Check sizes with `list_attachments_preview` when files are large (limit ~25 MB).
+## 4. Pass the parts separately (the server does the layout)
+Call `email_draft` with:
+- `salutation`: only the salutation line
+- `body` (or `html_body`): only the main text. **No salutation, closing, name or signature inside.**
+- `closing`: only if it differs from the profile
+- `attachments` (absolute paths), `inline_images` (pictures inside the text, `<img src="cid:img1">` in `html_body`)
+- `font` / `font_size` only if the user wants something other than the profile (any font name works; fallbacks are added)
 
-## 5. Create the draft, then follow the permission level
-Always call `create_email_draft` first (`open: true`). Then:
-- **draft_only:** stop. Say the draft is open in the mail app, unsent, and the user sends it.
-- **ask_before_send:** show recipients, subject, text and attachment names, ask "Soll ich senden?". Only after an explicit yes call `send_email` with `confirmed: true`.
-- **autonomous:** call `send_email` (without `confirmed`). If the tool answers CONFIRMATION REQUIRED, treat it as ask_before_send.
-See the `email-permissions` skill for details and for changing the level.
+The server then sets exactly one blank line between all blocks, the DIN 5008 closing (no comma, blank line, name), the signature separator and the font on every paragraph. Use `html_body` only for bold, lists, links, tables or mixed fonts. Full rules: `references/din5008.md`.
+
+Unsure about a layout or a long text? Run `email_check` with the same fields first. It shows the final layout with line numbers and writes nothing.
+
+## 5. After the draft: permission level
+- **draft_only:** stop. The draft is open in the mail app, unsent; the user sends it.
+- **ask_before_send:** show recipients, subject, text and attachments, ask "Senden?". Only after an explicit yes call `email_send` with `confirmed: true`.
+- **autonomous:** call `email_send` without `confirmed`. If it answers CONFIRMATION REQUIRED, ask like ask_before_send.
+Details and changes: `email-permissions` skill.
 
 ## 6. Report
-Show final subject and text, name attachments and images, and state exactly what happened: draft only, or sent to whom. Never claim a mail was sent unless `send_email` returned "Sent". Offer one concrete adjustment (shorter, more formal, other language).
+Show subject and the layout from the tool result, name attachments, and pass on "Fixed automatically" and "Please check" points briefly. State exactly what happened: draft only, or sent to whom. Never claim a mail was sent unless `email_send` returned "Sent to". Offer one concrete adjustment (shorter, more formal, other language).
 
 Do not attach files the user did not name. Ask before attaching anything sensitive.

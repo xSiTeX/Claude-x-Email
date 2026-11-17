@@ -5,8 +5,8 @@
     {
       "name": "mail-assistant",
       "source": "./mail-assistant",
-      "description": "Complete email upgrade: better writing, attachments and inline images, any font (Calibri etc.), permission levels from draft-only to autonomous sending.",
-      "version": "3.0.0"
+      "description": "Complete email upgrade: DIN 5008 layout, clear commands, better writing, attachments and inline images, any font (Calibri etc.), permission levels from draft-only to autonomous sending.",
+      "version": "4.0.0"
     }
   ]
 }

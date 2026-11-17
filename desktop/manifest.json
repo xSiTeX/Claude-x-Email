@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "mail-assistant",
   "display_name": "Mail Assistant",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Email upgrade for Claude: attachments, inline images, any font (Calibri etc.), drafts and permission-controlled sending.",
   "long_description": "Creates emails as ready-to-review drafts with file attachments, inline images and any font. Sending is off by default; you choose between draft only, ask before sending, or autonomous sending to an allow-list.",
   "author": { "name": "xSiTeX" },
@@ -22,12 +22,15 @@
     }
   },
   "tools": [
-    { "name": "create_email_draft", "description": "Create an unsent email draft with attachments, inline images and fonts" },
-    { "name": "send_email", "description": "Send a draft according to the permission level" },
-    { "name": "get_profile", "description": "Read profile and permission level" },
-    { "name": "set_profile", "description": "Save signature, font, language, permission level and SMTP host" },
-    { "name": "check_setup", "description": "Diagnose the setup" },
-    { "name": "list_attachments_preview", "description": "Check attachment sizes" }
+    { "name": "email_draft", "description": "Create an unsent draft in DIN 5008 layout with attachments, inline images and any font" },
+    { "name": "email_check", "description": "Check a mail against DIN 5008 and show the exact layout" },
+    { "name": "email_send", "description": "Send a draft according to the permission level" },
+    { "name": "email_list_drafts", "description": "List recent drafts" },
+    { "name": "email_profile_get", "description": "Show profile, sign-off preview and permission level" },
+    { "name": "email_profile_set", "description": "Save name, closing, signature, language, font and SMTP host" },
+    { "name": "email_permissions_set", "description": "Change the permission level (only on the user's request)" },
+    { "name": "email_setup_check", "description": "Diagnose the setup" },
+    { "name": "email_files_check", "description": "Check attachment files and sizes" }
   ],
   "user_config": {
     "smtp_host": { "type": "string", "title": "SMTP server (only needed for sending)", "description": "Gmail: smtp.gmail.com, Outlook.com: smtp-mail.outlook.com", "required": false, "default": "" },
